@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tech-interview-mastery",
+  "main": "src/index.tsx",
+  "workers_dev": true,
+  "preview_urls": false,
+  "compatibility_date": "2026-07-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tech-interview-mastery-db",
+      "database_id": "d6871a2a-9d15-4a75-bd7d-696c3a262cd7",
+      "migrations_dir": "migrations",
+    },
+  ],
+}
