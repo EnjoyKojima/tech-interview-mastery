@@ -314,6 +314,29 @@ button.danger {
   accent-color: var(--blue);
 }
 
+.option-list .option-item {
+  overflow: hidden;
+  padding: 0;
+}
+
+.option-button {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  justify-content: flex-start;
+  padding: 14px;
+  text-align: left;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.option-button:hover,
+.option-button:focus-visible {
+  background: #eef6ff;
+}
+
 .result.correct {
   border-color: #bbf7d0;
 }

@@ -290,17 +290,13 @@ function QuestionPage({
           <ol class="option-list">
             {choices.map((choice) => (
               <li class="option-item">
-                <label>
-                  <input type="radio" name="optionId" value={choice.id} required />
-                  <span>{choice.text}</span>
-                </label>
+                <button class="option-button" type="submit" name="optionId" value={choice.id}>
+                  {choice.text}
+                </button>
               </li>
             ))}
           </ol>
           <div class="footer-actions">
-            <button class="button primary" type="submit">
-              回答する
-            </button>
             <a class="button" href="/">
               現在地へ戻る
             </a>
