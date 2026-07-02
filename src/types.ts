@@ -1,5 +1,5 @@
 export const masteryTarget = 3;
-export const levels = [1, 2, 3, 4, 5] as const;
+export const levels = [1, 2, 3, 4, 5, 6, 7] as const;
 export const domains = ["computer", "design", "network", "security"] as const;
 
 export type Level = (typeof levels)[number];
@@ -17,6 +17,7 @@ export type Question = {
   tags: string[];
   prompt: string;
   correct: Option;
+  corrects?: Option[];
   distractors: Option[];
   brief: string;
   interview: string;

@@ -8,7 +8,7 @@ import {
   resetCurrentStreak,
   resetProgress,
 } from "./db";
-import { buildChoices, cryptoRandomInt } from "./random";
+import { buildChoices, correctOptions, cryptoRandomInt } from "./random";
 import { questions } from "./questions";
 import { styles } from "./styles";
 import {
@@ -328,8 +328,9 @@ function AnswerPage({
 }) {
   const progress = progressFor(question, rows);
   const selectedText =
-    [question.correct, ...question.distractors].find((choice) => choice.id === selectedOptionId)
-      ?.text ?? "未選択";
+    [...correctOptions(question), ...question.distractors].find(
+      (choice) => choice.id === selectedOptionId,
+    )?.text ?? "未選択";
 
   return (
     <Shell title={correct ? "正解" : "復習ポイント"}>
@@ -622,11 +623,13 @@ function domainLabel(domain: Domain): string {
 
 function levelTitle(level: LevelSummary["level"]): string {
   const titles: Record<LevelSummary["level"], string> = {
-    1: "言葉に慣れる",
+    1: "CSの土台",
     2: "仕組みを追う",
-    3: "違いを見分ける",
-    4: "実務で判断する",
-    5: "面接で説明する",
+    3: "境界を見分ける",
+    4: "実務で設計する",
+    5: "障害を説明する",
+    6: "OS/DB/分散を深掘る",
+    7: "面接で設計を守る",
   };
 
   return titles[level];

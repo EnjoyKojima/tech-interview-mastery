@@ -1,3 +1,4 @@
+import { additionalQuestions } from "./additional-questions";
 import { withSharperDistractors } from "./distractor-overrides";
 import type { Question } from "./types";
 
@@ -1409,4 +1410,4 @@ const baseQuestions: Question[] = [
   },
 ];
 
-export const questions = withSharperDistractors(baseQuestions);
+export const questions = withSharperDistractors([...baseQuestions, ...additionalQuestions]);

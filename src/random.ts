@@ -31,7 +31,16 @@ export function pickMany<T>(
   return shuffle(items, randomInt).slice(0, count);
 }
 
+export function correctOptions(question: Question): Option[] {
+  return [question.correct, ...(question.corrects ?? [])];
+}
+
+export function isCorrectOption(question: Question, optionId: string): boolean {
+  return correctOptions(question).some((option) => option.id === optionId);
+}
+
 export function buildChoices(question: Question, randomInt: RandomInt = cryptoRandomInt): Option[] {
+  const [pickedCorrect] = pickMany(correctOptions(question), 1, randomInt);
   const pickedDistractors = pickMany(question.distractors, 3, randomInt);
-  return shuffle([question.correct, ...pickedDistractors], randomInt);
+  return shuffle([pickedCorrect ?? question.correct, ...pickedDistractors], randomInt);
 }

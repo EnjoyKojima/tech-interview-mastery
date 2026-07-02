@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChoices } from "../src/random";
+import { buildChoices, isCorrectOption } from "../src/random";
 import { questions } from "../src/questions";
 import {
   assertQuestionBank,
@@ -12,14 +12,14 @@ import { nextStreakState } from "../src/streak";
 import { masteryTarget, type ProgressRow } from "../src/types";
 
 describe("question bank", () => {
-  it("has ten valid questions for every level", () => {
+  it("has at least ten valid questions for every level", () => {
     expect(() => assertQuestionBank(questions)).not.toThrow();
   });
 
-  it("builds four choices and always includes the correct answer", () => {
+  it("builds four choices and always includes a correct answer", () => {
     const choices = buildChoices(questions[0], () => 0);
     expect(choices).toHaveLength(4);
-    expect(choices.some((choice) => choice.id === "correct")).toBe(true);
+    expect(choices.some((choice) => isCorrectOption(questions[0], choice.id))).toBe(true);
   });
 });
 
@@ -37,9 +37,10 @@ describe("streaks", () => {
 
 describe("progression", () => {
   it("keeps the learner in level 1 until every level 1 question reaches three correct answers", () => {
+    const levelOneQuestions = questions.filter((question) => question.level === 1);
     const rows: ProgressRow[] = questions
       .filter((question) => question.level === 1)
-      .slice(0, 9)
+      .slice(0, levelOneQuestions.length - 1)
       .map((question) => ({
         questionId: question.id,
         level: question.level,
@@ -83,13 +84,13 @@ describe("progression", () => {
     }));
 
     expect(buildLevelClearanceSummary(1, questions, rows)).toMatchObject({
-      totalQuestions: 10,
+      totalQuestions: levelOneQuestions.length,
       masteredQuestions: 0,
-      remainingQuestions: 10,
-      remainingCorrectAnswers: 27,
+      remainingQuestions: levelOneQuestions.length,
+      remainingCorrectAnswers: levelOneQuestions.length * masteryTarget - 3,
       oneAwayQuestions: 1,
       twoAwayQuestions: 1,
-      threeAwayQuestions: 8,
+      threeAwayQuestions: levelOneQuestions.length - 2,
     });
   });
 

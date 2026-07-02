@@ -1,4 +1,5 @@
 import { nextStreakState } from "./streak";
+import { isCorrectOption } from "./random";
 import type { Domain, Level, ProgressRow, Question, StreakState } from "./types";
 
 type ProgressRecord = {
@@ -88,7 +89,7 @@ export async function recordAnswer(
   question: Question,
   selectedOptionId: string,
 ): Promise<AnswerResult> {
-  const correct = selectedOptionId === question.correct.id ? 1 : 0;
+  const correct = isCorrectOption(question, selectedOptionId) ? 1 : 0;
 
   await db.batch([
     db

@@ -53,7 +53,7 @@ export function currentLevel(questions: readonly Question[], rows: readonly Prog
     }
   }
 
-  return 5;
+  return levels[levels.length - 1];
 }
 
 export function buildLevelSummaries(
@@ -220,16 +220,25 @@ export function assertQuestionBank(questions: readonly Question[]): void {
 
     ids.add(question.id);
 
-    if (question.distractors.length !== 5) {
-      throw new Error(`${question.id} must have exactly five distractors`);
+    if (question.distractors.length < 5) {
+      throw new Error(`${question.id} must have at least five distractors`);
+    }
+
+    const optionIds = new Set([
+      question.correct.id,
+      ...(question.corrects ?? []).map((option) => option.id),
+    ]);
+
+    if (optionIds.size !== 1 + (question.corrects?.length ?? 0)) {
+      throw new Error(`${question.id} has duplicate correct option ids`);
     }
   }
 
   for (const level of levels) {
     const count = questions.filter((question) => question.level === level).length;
 
-    if (count !== 10) {
-      throw new Error(`Level ${level} must have 10 questions, found ${count}`);
+    if (count < 10) {
+      throw new Error(`Level ${level} must have at least 10 questions, found ${count}`);
     }
   }
 }
