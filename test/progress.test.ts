@@ -4,6 +4,7 @@ import { questions } from "../src/questions";
 import {
   assertQuestionBank,
   buildDomainSummaries,
+  buildLevelClearanceSummary,
   currentLevel,
   playableQuestions,
 } from "../src/progress";
@@ -67,6 +68,29 @@ describe("progression", () => {
       }));
 
     expect(currentLevel(questions, rows)).toBe(2);
+  });
+
+  it("summarizes how many answers remain to clear the level", () => {
+    const levelOneQuestions = questions.filter((question) => question.level === 1);
+    const rows: ProgressRow[] = levelOneQuestions.slice(0, 3).map((question, index) => ({
+      questionId: question.id,
+      level: question.level,
+      domain: question.domain,
+      correctCount: index,
+      attempts: index,
+      misses: 0,
+      lastAnsweredAt: null,
+    }));
+
+    expect(buildLevelClearanceSummary(1, questions, rows)).toMatchObject({
+      totalQuestions: 10,
+      masteredQuestions: 0,
+      remainingQuestions: 10,
+      remainingCorrectAnswers: 27,
+      oneAwayQuestions: 1,
+      twoAwayQuestions: 1,
+      threeAwayQuestions: 8,
+    });
   });
 
   it("surfaces weak tags by misses and unmastered points", () => {

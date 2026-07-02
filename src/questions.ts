@@ -1,6 +1,7 @@
+import { withSharperDistractors } from "./distractor-overrides";
 import type { Question } from "./types";
 
-export const questions: Question[] = [
+const baseQuestions: Question[] = [
   {
     id: "l1-computer-binary",
     level: 1,
@@ -1407,3 +1408,5 @@ export const questions: Question[] = [
     ],
   },
 ];
+
+export const questions = withSharperDistractors(baseQuestions);

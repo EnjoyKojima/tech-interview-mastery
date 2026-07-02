@@ -46,6 +46,17 @@ export type LevelSummary = {
   current: boolean;
 };
 
+export type LevelClearanceSummary = {
+  level: Level;
+  totalQuestions: number;
+  masteredQuestions: number;
+  remainingQuestions: number;
+  remainingCorrectAnswers: number;
+  oneAwayQuestions: number;
+  twoAwayQuestions: number;
+  threeAwayQuestions: number;
+};
+
 export type DomainSummary = {
   domain: Domain;
   attempts: number;

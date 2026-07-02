@@ -273,6 +273,37 @@ button.danger {
   font-weight: 650;
 }
 
+.clearance {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.35fr) repeat(5, minmax(72px, 0.65fr));
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  margin: 0 0 16px;
+  padding: 10px;
+}
+
+.clearance div {
+  min-height: 52px;
+  border: 1px solid #e5edf4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.clearance strong,
+.clearance b {
+  display: block;
+  font-size: 17px;
+}
+
+.clearance span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .progress {
   overflow: hidden;
   width: 100%;
@@ -382,7 +413,8 @@ pre {
   }
 
   .dashboard,
-  .stat-row {
+  .stat-row,
+  .clearance {
     grid-template-columns: 1fr;
   }
 }

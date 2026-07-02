@@ -13,6 +13,7 @@ import { questions } from "./questions";
 import { styles } from "./styles";
 import {
   buildDomainSummaries,
+  buildLevelClearanceSummary,
   buildLevelSummaries,
   currentLevel,
   nextFocus,
@@ -26,6 +27,7 @@ import {
   masteryTarget,
   type Domain,
   type DomainSummary,
+  type LevelClearanceSummary,
   type LevelSummary,
   type ProgressRow,
   type Question,
@@ -274,6 +276,7 @@ function QuestionPage({
 }) {
   const choices = buildChoices(question);
   const progress = progressFor(question, rows);
+  const clearance = buildLevelClearanceSummary(question.level, questions, rows);
 
   return (
     <Shell title={`Level ${question.level}: ${domainLabel(question.domain)}`}>
@@ -284,6 +287,7 @@ function QuestionPage({
         </span>
         <StreakBadge streak={streak} />
         <h1>{question.prompt}</h1>
+        <LevelClearanceCard summary={clearance} />
         <form method="post" action="/answer">
           <input type="hidden" name="questionId" value={question.id} />
           <input type="hidden" name="mode" value={mode} />
@@ -568,6 +572,39 @@ function StreakBadge({ streak }: { streak: StreakState }) {
     <div class="streak" aria-label={`${streak.current} correct answer streak`}>
       <strong>{streak.current} streak</strong>
       <span>連続正解中 · best {streak.best}</span>
+    </div>
+  );
+}
+
+function LevelClearanceCard({ summary }: { summary: LevelClearanceSummary }) {
+  return (
+    <div class="clearance">
+      <div>
+        <strong>Level {summary.level} クリアまで</strong>
+        <span>
+          {summary.masteredQuestions}/{summary.totalQuestions}問 master
+        </span>
+      </div>
+      <div>
+        <b>{summary.remainingQuestions}</b>
+        <span>未完了</span>
+      </div>
+      <div>
+        <b>{summary.remainingCorrectAnswers}</b>
+        <span>残り正解</span>
+      </div>
+      <div>
+        <b>{summary.oneAwayQuestions}</b>
+        <span>あと1回</span>
+      </div>
+      <div>
+        <b>{summary.twoAwayQuestions}</b>
+        <span>あと2回</span>
+      </div>
+      <div>
+        <b>{summary.threeAwayQuestions}</b>
+        <span>あと3回</span>
+      </div>
     </div>
   );
 }

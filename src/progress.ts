@@ -2,6 +2,7 @@ import {
   domains,
   levels,
   masteryTarget,
+  type LevelClearanceSummary,
   type DomainSummary,
   type Level,
   type LevelSummary,
@@ -79,6 +80,28 @@ export function buildLevelSummaries(
       current: level === activeLevel,
     };
   });
+}
+
+export function buildLevelClearanceSummary(
+  level: Level,
+  questions: readonly Question[],
+  rows: readonly ProgressRow[],
+): LevelClearanceSummary {
+  const levelQuestions = questions.filter((question) => question.level === level);
+  const missingCounts = levelQuestions.map((question) =>
+    Math.max(0, masteryTarget - progressFor(question, rows).correctCount),
+  );
+
+  return {
+    level,
+    totalQuestions: levelQuestions.length,
+    masteredQuestions: missingCounts.filter((missing) => missing === 0).length,
+    remainingQuestions: missingCounts.filter((missing) => missing > 0).length,
+    remainingCorrectAnswers: missingCounts.reduce((sum, missing) => sum + missing, 0),
+    oneAwayQuestions: missingCounts.filter((missing) => missing === 1).length,
+    twoAwayQuestions: missingCounts.filter((missing) => missing === 2).length,
+    threeAwayQuestions: missingCounts.filter((missing) => missing === 3).length,
+  };
 }
 
 export function playableQuestions(
