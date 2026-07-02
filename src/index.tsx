@@ -292,7 +292,7 @@ function QuestionPage({
               <li class="option-item">
                 <label>
                   <input type="radio" name="optionId" value={choice.id} required />
-                  <span>{displayChoiceText(question, choice)}</span>
+                  <span>{choice.text}</span>
                 </label>
               </li>
             ))}
@@ -327,15 +327,9 @@ function AnswerPage({
   streak: StreakState;
 }) {
   const progress = progressFor(question, rows);
-  const selectedText = displayChoiceText(
-    question,
-    [question.correct, ...question.distractors].find(
-      (choice) => choice.id === selectedOptionId,
-    ) ?? {
-      id: "missing",
-      text: "未選択",
-    },
-  );
+  const selectedText =
+    [question.correct, ...question.distractors].find((choice) => choice.id === selectedOptionId)
+      ?.text ?? "未選択";
 
   return (
     <Shell title={correct ? "正解" : "復習ポイント"}>
@@ -580,25 +574,6 @@ function StreakBadge({ streak }: { streak: StreakState }) {
       <span>連続正解中 · best {streak.best}</span>
     </div>
   );
-}
-
-function displayChoiceText(question: Question, choice: { id: string; text: string }): string {
-  if (choice.text.length >= 34) {
-    return choice.text;
-  }
-
-  return `${choice.text}。${choiceContext(question.domain)}`;
-}
-
-function choiceContext(domain: Domain): string {
-  const contexts: Record<Domain, string> = {
-    computer: "実行環境やOSの責務まで説明できるかで判断してください",
-    design: "変更容易性や責務分割の観点までつながるかで判断してください",
-    network: "ブラウザからサーバまでの通信の流れに合うかで判断してください",
-    security: "攻撃リスクや守るべき境界に合うかで判断してください",
-  };
-
-  return contexts[domain];
 }
 
 function domainLabel(domain: Domain): string {
