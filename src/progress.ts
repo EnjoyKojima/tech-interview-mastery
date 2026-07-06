@@ -1,4 +1,5 @@
 import {
+  canCountCorrect,
   formScore,
   pickStream,
   recentQuestionExclusion,
@@ -170,7 +171,18 @@ export type PickedQuestion = {
   forcedOptionId: string | null;
   mix: StreamMix | null;
   score: number | null;
+  // 現レベルが全問間隔待ちのとき、先取り出題しているレベル(通常は null)。
+  previewLevel: Level | null;
 };
+
+// 今正解すれば加算される問題だけに絞る。
+export function countableQuestions(
+  candidates: readonly Question[],
+  rows: readonly ProgressRow[],
+  now: Date,
+): Question[] {
+  return candidates.filter((question) => canCountCorrect(progressFor(question, rows), now));
+}
 
 export function pickAdaptiveQuestion(input: {
   questions: readonly Question[];
@@ -194,6 +206,7 @@ export function pickAdaptiveQuestion(input: {
         forcedOptionId: remediation.errorKind === "confusion" ? remediation.forcedOptionId : null,
         mix,
         score,
+        previewLevel: null,
       };
     }
   }
@@ -201,19 +214,45 @@ export function pickAdaptiveQuestion(input: {
   const recentIds = new Set(
     recentEvents.slice(0, recentQuestionExclusion).map((event) => event.questionId),
   );
-  const retention = retentionDueQuestions(questions, rows, now).filter(
-    (question) => !recentIds.has(question.id),
-  );
-  const revenge = reviewQuestions(questions, rows).filter(
-    (question) => !recentIds.has(question.id),
+  const notRecent = (question: Question) => !recentIds.has(question.id);
+  const retention = retentionDueQuestions(questions, rows, now).filter(notRecent);
+  const revenge = countableQuestions(reviewQuestions(questions, rows), rows, now).filter(
+    notRecent,
   );
   const revengeIds = new Set(revenge.map((question) => question.id));
-  const fresh = playableQuestions(questions, rows).filter(
-    (question) => !revengeIds.has(question.id) && !recentIds.has(question.id),
+  const fresh = countableQuestions(playableQuestions(questions, rows), rows, now).filter(
+    (question) => !revengeIds.has(question.id) && notRecent(question),
   );
 
+  // 現レベルが全問間隔待ちなら、上のレベルから加算可能な問題を先取りする。
+  const activeLevel = currentLevel(questions, rows);
+  let previewLevel: Level | null = null;
+  let newPool = fresh;
+
+  if (fresh.length === 0) {
+    for (const level of levels) {
+      if (level <= activeLevel) {
+        continue;
+      }
+
+      const pool = countableQuestions(
+        questions.filter(
+          (question) => question.level === level && !isQuestionMastered(question, rows),
+        ),
+        rows,
+        now,
+      ).filter(notRecent);
+
+      if (pool.length > 0) {
+        previewLevel = level;
+        newPool = pool;
+        break;
+      }
+    }
+  }
+
   const pools: Record<"new" | "revenge" | "retention", Question[]> = {
-    new: fresh,
+    new: newPool,
     revenge,
     retention,
   };
@@ -236,14 +275,24 @@ export function pickAdaptiveQuestion(input: {
       stream === "new" ? pickNextQuestion(pool, rows, randomInt) : (pool[0] ?? null);
 
     if (question) {
-      return { question, stream, forcedOptionId: null, mix, score };
+      return {
+        question,
+        stream,
+        forcedOptionId: null,
+        mix,
+        score,
+        previewLevel: stream === "new" ? previewLevel : null,
+      };
     }
   }
 
-  // 全ストリームが空でも、除外した直近出題分に候補が残っていれば出す。
+  // どのストリームも加算可能な候補がない場合の最終手段:
+  // 加算はされないが、現レベルの残り問題を出す(進捗ゼロで止めない)。
   const anyPlayable = playableQuestions(questions, rows);
   const question = pickNextQuestion(anyPlayable, rows, randomInt);
-  return question ? { question, stream: "new", forcedOptionId: null, mix, score } : null;
+  return question
+    ? { question, stream: "new", forcedOptionId: null, mix, score, previewLevel: null }
+    : null;
 }
 
 export function buildDomainSummaries(

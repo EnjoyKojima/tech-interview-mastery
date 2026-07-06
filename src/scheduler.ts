@@ -8,8 +8,8 @@ import { masteryTarget } from "./types";
 export const slipElapsedMs = 8_000;
 
 // correct_count n → n+1 の加算に必要な、前回正解からの最短間隔(時間)。
-// 1→2は同日の別セッション(実測1.5〜6h間隔)で、2→3は翌日以降で達成できる値。
-export const spacingGateHours = [0, 2, 12] as const;
+// 一律1時間: 同一セッション連打は防ぎつつ、1日2〜3セッションでマスターに届く。
+export const spacingGateHours = [0, 1, 1] as const;
 
 // マスター後の保持チェック間隔(日)。stage 0から順に拡張。
 // 現在のペース(1日13〜24問)なら25%混入で1日3〜6問の保持チェックを消化できる。

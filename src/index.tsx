@@ -21,6 +21,7 @@ import {
   buildDomainSummaries,
   buildLevelClearanceSummary,
   buildLevelSummaries,
+  countableQuestions,
   currentLevel,
   nextFocus,
   pickAdaptiveQuestion,
@@ -97,9 +98,12 @@ app.get("/play", async (context) => {
 app.get("/review", async (context) => {
   const rows = await loadProgress(context.env.DB);
   const streak = await loadStreakState(context.env.DB);
-  const reviewCandidates = reviewQuestions(questions, rows);
+  const now = new Date();
+  const reviewCandidates = countableQuestions(reviewQuestions(questions, rows), rows, now);
   const question = pickNextQuestion(
-    reviewCandidates.length > 0 ? reviewCandidates : playableQuestions(questions, rows),
+    reviewCandidates.length > 0
+      ? reviewCandidates
+      : countableQuestions(playableQuestions(questions, rows), rows, now),
     rows,
     cryptoRandomInt,
   );
@@ -111,7 +115,14 @@ app.get("/review", async (context) => {
   return context.html(
     <QuestionPage
       mode="review"
-      picked={{ question, stream: "revenge", forcedOptionId: null, mix: null, score: null }}
+      picked={{
+        question,
+        stream: "revenge",
+        forcedOptionId: null,
+        mix: null,
+        score: null,
+        previewLevel: null,
+      }}
       rows={rows}
       streak={streak}
     />,
@@ -346,7 +357,15 @@ function QuestionPage({
         <StreakBadge streak={streak} />
         <div>
           <span class={`badge ${streamBadgeClass(stream)}`}>{streamLabel(stream)}</span>
+          {picked.previewLevel !== null ? (
+            <span class="badge amber">⏩ Level {picked.previewLevel} 先取り中</span>
+          ) : null}
         </div>
+        {picked.previewLevel !== null ? (
+          <p class="muted">
+            現レベルの問題はすべて間隔待ちのため、Level {picked.previewLevel} を先行出題しています。
+          </p>
+        ) : null}
         <h1>{question.prompt}</h1>
         <LevelClearanceCard summary={clearance} />
         {mix && score !== null ? (

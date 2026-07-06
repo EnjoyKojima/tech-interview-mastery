@@ -41,9 +41,9 @@ describe("spacing gates", () => {
     expect(canCountCorrect(row, now)).toBe(true);
   });
 
-  it("schedules 2h, 12h, then retention gates", () => {
-    expect(nextDueAt(1, 0, now)).toBe("2026-07-06 14:00:00");
-    expect(nextDueAt(2, 0, now)).toBe("2026-07-07 00:00:00");
+  it("schedules 1h gates, then retention intervals", () => {
+    expect(nextDueAt(1, 0, now)).toBe("2026-07-06 13:00:00");
+    expect(nextDueAt(2, 0, now)).toBe("2026-07-06 13:00:00");
     expect(nextDueAt(3, 0, now)).toBe("2026-07-08 12:00:00");
     expect(nextDueAt(3, 1, now)).toBe("2026-07-11 12:00:00");
   });
