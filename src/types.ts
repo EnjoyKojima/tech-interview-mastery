@@ -10,6 +10,11 @@ export type Option = {
   text: string;
 };
 
+export type GlossaryEntry = {
+  term: string;
+  description: string;
+};
+
 export type Question = {
   id: string;
   level: Level;
@@ -24,6 +29,7 @@ export type Question = {
   relevance: string;
   next: string;
   deeper: string[];
+  glossary?: GlossaryEntry[];
   diagram?: string;
 };
 
@@ -35,6 +41,21 @@ export type ProgressRow = {
   attempts: number;
   misses: number;
   lastAnsweredAt: string | null;
+  lastCorrectAt: string | null;
+  dueAt: string | null;
+  retentionStage: number;
+};
+
+export type ErrorKind = "slip" | "confusion" | "unknown";
+
+export type StreamKind = "new" | "revenge" | "retention" | "remediation";
+
+export type RemediationEntry = {
+  id: number;
+  questionId: string;
+  errorKind: ErrorKind;
+  forcedOptionId: string | null;
+  dueAtAttempt: number;
 };
 
 export type LevelSummary = {

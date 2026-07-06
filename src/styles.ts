@@ -274,34 +274,24 @@ button.danger {
 }
 
 .clearance {
-  display: grid;
-  grid-template-columns: minmax(170px, 1.35fr) repeat(5, minmax(72px, 0.65fr));
-  gap: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
   margin: 0 0 16px;
-  padding: 10px;
+  padding: 10px 14px;
 }
 
-.clearance div {
-  min-height: 52px;
-  border: 1px solid #e5edf4;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 8px 10px;
-}
-
-.clearance strong,
-.clearance b {
-  display: block;
-  font-size: 17px;
+.clearance strong {
+  font-size: 15px;
 }
 
 .clearance span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 650;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 750;
 }
 
 .progress {
@@ -405,6 +395,42 @@ pre {
   margin-top: 16px;
 }
 
+.reclassify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.reclassify button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.scheduler-note {
+  border-color: var(--blue);
+}
+
+.glossary {
+  margin: 8px 0 0;
+}
+
+.glossary dt {
+  font-weight: 750;
+  margin-top: 10px;
+}
+
+.glossary dt:first-of-type {
+  margin-top: 0;
+}
+
+.glossary dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
 @media (max-width: 800px) {
   .topbar-inner {
     align-items: flex-start;
@@ -413,8 +439,7 @@ pre {
   }
 
   .dashboard,
-  .stat-row,
-  .clearance {
+  .stat-row {
     grid-template-columns: 1fr;
   }
 }

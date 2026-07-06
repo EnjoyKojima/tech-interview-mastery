@@ -49,6 +49,9 @@ describe("progression", () => {
         attempts: masteryTarget,
         misses: 0,
         lastAnsweredAt: null,
+        lastCorrectAt: null,
+        dueAt: null,
+        retentionStage: 0,
       }));
 
     expect(currentLevel(questions, rows)).toBe(1);
@@ -66,6 +69,9 @@ describe("progression", () => {
         attempts: masteryTarget,
         misses: 0,
         lastAnsweredAt: null,
+        lastCorrectAt: null,
+        dueAt: null,
+        retentionStage: 0,
       }));
 
     expect(currentLevel(questions, rows)).toBe(2);
@@ -81,6 +87,9 @@ describe("progression", () => {
       attempts: index,
       misses: 0,
       lastAnsweredAt: null,
+      lastCorrectAt: null,
+      dueAt: null,
+      retentionStage: 0,
     }));
 
     expect(buildLevelClearanceSummary(1, questions, rows)).toMatchObject({
@@ -110,6 +119,9 @@ describe("progression", () => {
         attempts: 3,
         misses: 3,
         lastAnsweredAt: null,
+        lastCorrectAt: null,
+        dueAt: null,
+        retentionStage: 0,
       },
     ];
 

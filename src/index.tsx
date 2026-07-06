@@ -2,14 +2,20 @@ import { Hono } from "hono";
 import type { Child } from "hono/jsx";
 import { verifyBasicAuth, unauthorizedResponse } from "./auth";
 import {
+  loadDueRemediation,
   loadProgress,
+  loadRecentAnswerEvents,
   loadStreakState,
   recordAnswer,
   resetCurrentStreak,
   resetProgress,
+  updateErrorKind,
+  type AnswerResult,
+  type RecentAnswerEvent,
 } from "./db";
 import { buildChoices, correctOptions, cryptoRandomInt } from "./random";
 import { questions } from "./questions";
+import { formWindowSize, parseSqlDate, retentionDueQuestions } from "./scheduler";
 import { styles } from "./styles";
 import {
   buildDomainSummaries,
@@ -17,26 +23,32 @@ import {
   buildLevelSummaries,
   currentLevel,
   nextFocus,
+  pickAdaptiveQuestion,
   pickNextQuestion,
   playableQuestions,
   progressFor,
   reviewQuestions,
   totalMasteryPoints,
+  type PickedQuestion,
 } from "./progress";
 import {
   masteryTarget,
   type Domain,
   type DomainSummary,
+  type ErrorKind,
   type LevelClearanceSummary,
   type LevelSummary,
   type ProgressRow,
   type Question,
   type StreakState,
+  type StreamKind,
 } from "./types";
 
 type AppBindings = {
   Bindings: Env;
 };
+
+const checkpointInterval = 10;
 
 const app = new Hono<AppBindings>();
 
@@ -63,13 +75,23 @@ app.get("/", async (context) => {
 app.get("/play", async (context) => {
   const rows = await loadProgress(context.env.DB);
   const streak = await loadStreakState(context.env.DB);
-  const question = pickNextQuestion(playableQuestions(questions, rows), rows, cryptoRandomInt);
+  const recentEvents = await loadRecentAnswerEvents(context.env.DB, formWindowSize);
+  const totalAttempts = rows.reduce((sum, row) => sum + row.attempts, 0);
+  const remediation = await loadDueRemediation(context.env.DB, totalAttempts);
+  const picked = pickAdaptiveQuestion({
+    questions,
+    rows,
+    recentEvents,
+    remediation,
+    randomInt: cryptoRandomInt,
+    now: new Date(),
+  });
 
-  if (!question) {
+  if (!picked) {
     return context.html(<CompletePage rows={rows} />);
   }
 
-  return context.html(<QuestionPage mode="play" question={question} rows={rows} streak={streak} />);
+  return context.html(<QuestionPage mode="play" picked={picked} rows={rows} streak={streak} />);
 });
 
 app.get("/review", async (context) => {
@@ -87,7 +109,12 @@ app.get("/review", async (context) => {
   }
 
   return context.html(
-    <QuestionPage mode="review" question={question} rows={rows} streak={streak} />,
+    <QuestionPage
+      mode="review"
+      picked={{ question, stream: "revenge", forcedOptionId: null, mix: null, score: null }}
+      rows={rows}
+      streak={streak}
+    />,
   );
 });
 
@@ -96,25 +123,50 @@ app.post("/answer", async (context) => {
   const questionId = String(body.questionId ?? "");
   const selectedOptionId = String(body.optionId ?? "");
   const mode = body.mode === "review" ? "review" : "play";
+  const stream = parseStream(String(body.stream ?? ""));
+  const issuedAt = Number(body.issuedAt ?? Number.NaN);
+  const elapsedMs =
+    Number.isFinite(issuedAt) && Date.now() >= issuedAt
+      ? Math.min(Date.now() - issuedAt, 600_000)
+      : null;
   const question = questions.find((candidate) => candidate.id === questionId);
 
   if (!question || !selectedOptionId) {
     return context.redirect("/play");
   }
 
-  const answer = await recordAnswer(context.env.DB, question, selectedOptionId);
+  const answer = await recordAnswer(context.env.DB, question, selectedOptionId, elapsedMs);
   const rows = await loadProgress(context.env.DB);
 
   return context.html(
     <AnswerPage
-      correct={answer.correct}
+      answer={answer}
       mode={mode}
       question={question}
       rows={rows}
       selectedOptionId={selectedOptionId}
-      streak={answer.streak}
+      stream={stream}
     />,
   );
+});
+
+app.post("/reclassify", async (context) => {
+  const body = await context.req.parseBody();
+  const eventId = Number(body.eventId ?? Number.NaN);
+  const kind = String(body.kind ?? "");
+  const mode = body.mode === "review" ? "review" : "play";
+
+  if (Number.isInteger(eventId) && (kind === "slip" || kind === "confusion" || kind === "unknown")) {
+    await updateErrorKind(context.env.DB, eventId, kind);
+  }
+
+  return context.redirect(mode === "review" ? "/review" : "/play");
+});
+
+app.get("/checkpoint", async (context) => {
+  const mode = context.req.query("mode") === "review" ? "review" : "play";
+  const events = await loadRecentAnswerEvents(context.env.DB, checkpointInterval);
+  return context.html(<CheckpointPage mode={mode} events={events} />);
 });
 
 app.get("/status", async (context) => {
@@ -197,6 +249,7 @@ function HomePage({ rows }: { rows: ProgressRow[] }) {
   const requiredPoints = questions.length * masteryTarget;
   const attempts = rows.reduce((sum, row) => sum + row.attempts, 0);
   const misses = rows.reduce((sum, row) => sum + row.misses, 0);
+  const retentionDue = retentionDueQuestions(questions, rows, new Date()).length;
 
   return (
     <Shell title="Tech Interview Mastery">
@@ -222,6 +275,10 @@ function HomePage({ rows }: { rows: ProgressRow[] }) {
                 {totalPoints}/{requiredPoints}
               </b>
               <span>mastery points</span>
+            </div>
+            <div class="stat">
+              <b>{retentionDue}</b>
+              <span>今日の復習</span>
             </div>
             <div class="stat">
               <b>{attempts}</b>
@@ -265,16 +322,17 @@ function HomePage({ rows }: { rows: ProgressRow[] }) {
 
 function QuestionPage({
   mode,
-  question,
+  picked,
   rows,
   streak,
 }: {
   mode: "play" | "review";
-  question: Question;
+  picked: PickedQuestion;
   rows: ProgressRow[];
   streak: StreakState;
 }) {
-  const choices = buildChoices(question);
+  const { question, stream, forcedOptionId, mix, score } = picked;
+  const choices = buildChoices(question, cryptoRandomInt, forcedOptionId ?? undefined);
   const progress = progressFor(question, rows);
   const clearance = buildLevelClearanceSummary(question.level, questions, rows);
 
@@ -286,11 +344,22 @@ function QuestionPage({
           {masteryTarget}
         </span>
         <StreakBadge streak={streak} />
+        <div>
+          <span class={`badge ${streamBadgeClass(stream)}`}>{streamLabel(stream)}</span>
+        </div>
         <h1>{question.prompt}</h1>
         <LevelClearanceCard summary={clearance} />
+        {mix && score !== null ? (
+          <p class="muted">
+            調子: 直近{formWindowSize}問中{Math.round(score * formWindowSize)}問正解 → 出題ミックス
+            新規{mix.new}/リベンジ{mix.revenge}/記憶{mix.retention}
+          </p>
+        ) : null}
         <form method="post" action="/answer">
           <input type="hidden" name="questionId" value={question.id} />
           <input type="hidden" name="mode" value={mode} />
+          <input type="hidden" name="stream" value={stream} />
+          <input type="hidden" name="issuedAt" value={String(Date.now())} />
           <ol class="option-list">
             {choices.map((choice) => (
               <li class="option-item">
@@ -312,39 +381,45 @@ function QuestionPage({
 }
 
 function AnswerPage({
-  correct,
+  answer,
   mode,
   question,
   rows,
   selectedOptionId,
-  streak,
+  stream,
 }: {
-  correct: boolean;
+  answer: AnswerResult;
   mode: "play" | "review";
   question: Question;
   rows: ProgressRow[];
   selectedOptionId: string;
-  streak: StreakState;
+  stream: StreamKind | null;
 }) {
+  const { correct, counted, errorKind, wasRetentionCheck, lapsed, streak } = answer;
   const progress = progressFor(question, rows);
-  const selectedText =
-    [...correctOptions(question), ...question.distractors].find(
-      (choice) => choice.id === selectedOptionId,
-    )?.text ?? "未選択";
+  const selectedText = optionText(question, selectedOptionId);
+  const totalAttempts = rows.reduce((sum, row) => sum + row.attempts, 0);
+  const checkpointDue = totalAttempts > 0 && totalAttempts % checkpointInterval === 0;
+  const nextHref = checkpointDue
+    ? `/checkpoint?mode=${mode}`
+    : mode === "review"
+      ? "/review"
+      : "/play";
+  const compact = errorKind === "slip";
 
   return (
     <Shell title={correct ? "正解" : "復習ポイント"}>
       <section class={`question panel result ${correct ? "correct" : "wrong"}`}>
         <span class={`badge ${correct ? "green" : "red"}`}>
-          {correct ? "正解" : "復習ポイント"}
+          {correct ? "正解" : missLabel(errorKind)}
         </span>
         <StreakBadge streak={streak} />
-        <h1>
-          {correct
-            ? "いい感じです。この理解は積み上がっています。"
-            : "ここは伸びしろです。短く直して次へ行きましょう。"}
-        </h1>
+        <h1>{resultHeadline(answer)}</h1>
+        <SchedulerNote answer={answer} stream={stream} />
         <div class="callout">
+          <p>
+            <strong>問題:</strong> {question.prompt}
+          </p>
           <p>
             <strong>あなたの回答:</strong> {selectedText}
           </p>
@@ -369,9 +444,21 @@ function AnswerPage({
             <span>misses</span>
           </div>
         </div>
-        <details style="margin-top: 16px;">
-          <summary>詳しく見る</summary>
-          <div class="detail-list" style="margin-top: 12px;">
+        {compact ? null : (
+          <div class="detail-list" style="margin-top: 16px;">
+            {question.glossary && question.glossary.length > 0 ? (
+              <div class="callout">
+                <strong>用語解説</strong>
+                <dl class="glossary">
+                  {question.glossary.map((entry) => (
+                    <>
+                      <dt>{entry.term}</dt>
+                      <dd>{entry.description}</dd>
+                    </>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
             <div class="callout">
               <strong>面接での答え方</strong>
               <p>{question.interview}</p>
@@ -389,10 +476,164 @@ function AnswerPage({
               <div class="callout">{line}</div>
             ))}
           </div>
-        </details>
+        )}
+        {!correct && answer.eventId !== null ? (
+          <form method="post" action="/reclassify" class="reclassify">
+            <span class="muted">
+              判定: {missLabel(errorKind)} — 違っていたら修正:
+            </span>
+            <input type="hidden" name="eventId" value={String(answer.eventId)} />
+            <input type="hidden" name="mode" value={mode} />
+            <button type="submit" name="kind" value="slip">
+              うっかり
+            </button>
+            <button type="submit" name="kind" value="confusion">
+              混同してた
+            </button>
+            <button type="submit" name="kind" value="unknown">
+              知らなかった
+            </button>
+          </form>
+        ) : null}
         <div class="footer-actions">
-          <a class="button primary" href={mode === "review" ? "/review" : "/play"}>
-            次へ
+          <a class="button primary" style="flex: 1;" href={nextHref}>
+            {checkpointDue ? "10問の振り返りへ" : "次へ"}
+          </a>
+          <a class="button" href="/status">
+            現在地を見る
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+function resultHeadline(answer: AnswerResult): string {
+  if (answer.correct) {
+    if (answer.wasRetentionCheck && answer.counted) {
+      return "記憶チェック成功。この知識は定着しています。";
+    }
+
+    if (!answer.counted) {
+      return "正解。ただし間隔が空いていないため、正解カウントには加算されません。";
+    }
+
+    return "いい感じです。この理解は積み上がっています。";
+  }
+
+  if (answer.lapsed) {
+    return "マスター済みでしたが忘れかけています。現役プールに戻しました。";
+  }
+
+  switch (answer.errorKind) {
+    case "slip":
+      return "うっかりミスのようです。すぐに同じ問題でリベンジしましょう。";
+    case "confusion":
+      return "選択肢を混同しています。正解との違いを見比べてください。";
+    default:
+      return "ここは伸びしろです。解説を読んで次へ行きましょう。";
+  }
+}
+
+function SchedulerNote({ answer, stream }: { answer: AnswerResult; stream: StreamKind | null }) {
+  const notes: string[] = [];
+
+  if (answer.correct && !answer.counted && answer.nextDueAt) {
+    notes.push(`次に加算できるのは ${formatJst(answer.nextDueAt)} 以降です。`);
+  }
+
+  if (answer.correct && answer.counted && answer.wasRetentionCheck && answer.nextDueAt) {
+    notes.push(`次回の記憶チェック: ${formatJst(answer.nextDueAt)}`);
+  }
+
+  if (answer.correct && answer.counted && !answer.wasRetentionCheck && answer.nextDueAt) {
+    notes.push(`次の正解が加算できるのは ${formatJst(answer.nextDueAt)} 以降です。`);
+  }
+
+  if (!answer.correct && answer.errorKind) {
+    const delays: Record<ErrorKind, string> = {
+      slip: "1問後に同じ問題を再出題します。",
+      confusion: "5問後に同じ誤選択肢を混ぜて再出題します。見分けられるか試します。",
+      unknown: "3問後に再出題して、解説を思い出せるか確認します。",
+    };
+    notes.push(delays[answer.errorKind]);
+  }
+
+  if (stream === "retention" && !answer.correct) {
+    notes.push("記憶チェックで失敗したため、再び3回目の正解が必要です。");
+  }
+
+  if (notes.length === 0) {
+    return null;
+  }
+
+  return (
+    <div class="callout scheduler-note">
+      {notes.map((note) => (
+        <p>{note}</p>
+      ))}
+    </div>
+  );
+}
+
+function CheckpointPage({ mode, events }: { mode: "play" | "review"; events: RecentAnswerEvent[] }) {
+  const continueHref = mode === "review" ? "/review" : "/play";
+  const mistakes: RecentAnswerEvent[] = [];
+  const seen = new Set<string>();
+
+  for (const event of events) {
+    if (!event.correct && !seen.has(event.questionId)) {
+      seen.add(event.questionId);
+      mistakes.push(event);
+    }
+  }
+
+  return (
+    <Shell title="10問の振り返り">
+      <section class="question panel">
+        <span class="eyebrow">Checkpoint</span>
+        <h1>
+          直近{checkpointInterval}問の振り返り: ミス {mistakes.length}件
+        </h1>
+        {mistakes.length === 0 ? (
+          <div class="callout">
+            <strong>ノーミスです。</strong>
+            <p class="muted">この{checkpointInterval}問は全問正解でした。このまま進みましょう。</p>
+          </div>
+        ) : (
+          <div class="detail-list">
+            {mistakes.map((mistake) => {
+              const question = questions.find(
+                (candidate) => candidate.id === mistake.questionId,
+              );
+
+              if (!question) {
+                return null;
+              }
+
+              return (
+                <div class="callout">
+                  <span class="badge red">
+                    Level {question.level} / {domainLabel(question.domain)}
+                  </span>
+                  <p>
+                    <strong>問題:</strong> {question.prompt}
+                  </p>
+                  <p>
+                    <strong>あなたの回答:</strong> {optionText(question, mistake.selectedOptionId)}
+                  </p>
+                  <p>
+                    <strong>正解:</strong> {question.correct.text}
+                  </p>
+                  <p class="muted">{question.brief}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div class="footer-actions">
+          <a class="button primary" style="flex: 1;" href={continueHref}>
+            続ける
           </a>
           <a class="button" href="/status">
             現在地を見る
@@ -580,33 +821,70 @@ function StreakBadge({ streak }: { streak: StreakState }) {
 function LevelClearanceCard({ summary }: { summary: LevelClearanceSummary }) {
   return (
     <div class="clearance">
-      <div>
-        <strong>Level {summary.level} クリアまで</strong>
-        <span>
-          {summary.masteredQuestions}/{summary.totalQuestions}問 master
-        </span>
-      </div>
-      <div>
-        <b>{summary.remainingQuestions}</b>
-        <span>未完了</span>
-      </div>
-      <div>
-        <b>{summary.remainingCorrectAnswers}</b>
-        <span>残り正解</span>
-      </div>
-      <div>
-        <b>{summary.oneAwayQuestions}</b>
-        <span>あと1回</span>
-      </div>
-      <div>
-        <b>{summary.twoAwayQuestions}</b>
-        <span>あと2回</span>
-      </div>
-      <div>
-        <b>{summary.threeAwayQuestions}</b>
-        <span>あと3回</span>
-      </div>
+      <strong>Level {summary.level} クリアまで</strong>
+      <span>
+        {summary.masteredQuestions}/{summary.totalQuestions}問
+      </span>
     </div>
+  );
+}
+
+function parseStream(value: string): StreamKind | null {
+  return value === "new" || value === "revenge" || value === "retention" || value === "remediation"
+    ? value
+    : null;
+}
+
+function streamLabel(stream: StreamKind): string {
+  const labels: Record<StreamKind, string> = {
+    new: "🆕 新規",
+    revenge: "🔁 リベンジ",
+    retention: "🧠 記憶チェック",
+    remediation: "⚔ 処方リベンジ",
+  };
+
+  return labels[stream];
+}
+
+function streamBadgeClass(stream: StreamKind): string {
+  const classes: Record<StreamKind, string> = {
+    new: "green",
+    revenge: "amber",
+    retention: "",
+    remediation: "red",
+  };
+
+  return classes[stream];
+}
+
+function missLabel(errorKind: ErrorKind | null): string {
+  switch (errorKind) {
+    case "slip":
+      return "うっかり";
+    case "confusion":
+      return "混同";
+    case "unknown":
+      return "知識の穴";
+    default:
+      return "復習ポイント";
+  }
+}
+
+function formatJst(sqlDate: string): string {
+  return parseSqlDate(sqlDate).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function optionText(question: Question, optionId: string): string {
+  return (
+    [...correctOptions(question), ...question.distractors].find(
+      (choice) => choice.id === optionId,
+    )?.text ?? "未選択"
   );
 }
 

@@ -1,5 +1,7 @@
 import { additionalQuestions } from "./additional-questions";
 import { withSharperDistractors } from "./distractor-overrides";
+import { generatedQuestions } from "./generated-questions";
+import { glossaryByQuestionId } from "./glossary";
 import type { Question } from "./types";
 
 const baseQuestions: Question[] = [
@@ -1410,4 +1412,13 @@ const baseQuestions: Question[] = [
   },
 ];
 
-export const questions = withSharperDistractors([...baseQuestions, ...additionalQuestions]);
+function withGlossary(items: readonly Question[]): Question[] {
+  return items.map((question) => ({
+    ...question,
+    glossary: question.glossary ?? glossaryByQuestionId[question.id],
+  }));
+}
+
+export const questions = withGlossary(
+  withSharperDistractors([...baseQuestions, ...additionalQuestions, ...generatedQuestions]),
+);

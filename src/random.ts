@@ -39,8 +39,21 @@ export function isCorrectOption(question: Question, optionId: string): boolean {
   return correctOptions(question).some((option) => option.id === optionId);
 }
 
-export function buildChoices(question: Question, randomInt: RandomInt = cryptoRandomInt): Option[] {
+export function buildChoices(
+  question: Question,
+  randomInt: RandomInt = cryptoRandomInt,
+  forcedOptionId?: string,
+): Option[] {
   const [pickedCorrect] = pickMany(correctOptions(question), 1, randomInt);
-  const pickedDistractors = pickMany(question.distractors, 3, randomInt);
+  const forced = forcedOptionId
+    ? question.distractors.find((option) => option.id === forcedOptionId)
+    : undefined;
+  const rest = forced
+    ? question.distractors.filter((option) => option.id !== forced.id)
+    : question.distractors;
+  const pickedDistractors = [
+    ...(forced ? [forced] : []),
+    ...pickMany(rest, forced ? 2 : 3, randomInt),
+  ];
   return shuffle([pickedCorrect ?? question.correct, ...pickedDistractors], randomInt);
 }

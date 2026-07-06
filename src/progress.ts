@@ -1,4 +1,12 @@
 import {
+  formScore,
+  pickStream,
+  recentQuestionExclusion,
+  retentionDueQuestions,
+  streamMix,
+  type StreamMix,
+} from "./scheduler";
+import {
   domains,
   levels,
   masteryTarget,
@@ -8,6 +16,8 @@ import {
   type LevelSummary,
   type ProgressRow,
   type Question,
+  type RemediationEntry,
+  type StreamKind,
 } from "./types";
 
 export function emptyProgressFor(question: Question): ProgressRow {
@@ -19,6 +29,9 @@ export function emptyProgressFor(question: Question): ProgressRow {
     attempts: 0,
     misses: 0,
     lastAnsweredAt: null,
+    lastCorrectAt: null,
+    dueAt: null,
+    retentionStage: 0,
   };
 }
 
@@ -149,6 +162,88 @@ export function pickNextQuestion(
     (question) => progressFor(question, rows).correctCount === lowestCorrectCount,
   );
   return weakest[randomInt(weakest.length)] ?? null;
+}
+
+export type PickedQuestion = {
+  question: Question;
+  stream: StreamKind;
+  forcedOptionId: string | null;
+  mix: StreamMix | null;
+  score: number | null;
+};
+
+export function pickAdaptiveQuestion(input: {
+  questions: readonly Question[];
+  rows: readonly ProgressRow[];
+  recentEvents: readonly { questionId: string; correct: boolean }[];
+  remediation: RemediationEntry | null;
+  randomInt: (maxExclusive: number) => number;
+  now: Date;
+}): PickedQuestion | null {
+  const { questions, rows, recentEvents, remediation, randomInt, now } = input;
+  const score = formScore(recentEvents.map((event) => event.correct));
+  const mix = streamMix(score);
+
+  if (remediation) {
+    const question = questions.find((candidate) => candidate.id === remediation.questionId);
+
+    if (question) {
+      return {
+        question,
+        stream: "remediation",
+        forcedOptionId: remediation.errorKind === "confusion" ? remediation.forcedOptionId : null,
+        mix,
+        score,
+      };
+    }
+  }
+
+  const recentIds = new Set(
+    recentEvents.slice(0, recentQuestionExclusion).map((event) => event.questionId),
+  );
+  const retention = retentionDueQuestions(questions, rows, now).filter(
+    (question) => !recentIds.has(question.id),
+  );
+  const revenge = reviewQuestions(questions, rows).filter(
+    (question) => !recentIds.has(question.id),
+  );
+  const revengeIds = new Set(revenge.map((question) => question.id));
+  const fresh = playableQuestions(questions, rows).filter(
+    (question) => !revengeIds.has(question.id) && !recentIds.has(question.id),
+  );
+
+  const pools: Record<"new" | "revenge" | "retention", Question[]> = {
+    new: fresh,
+    revenge,
+    retention,
+  };
+  const preferred = pickStream(mix, randomInt(100));
+  const fallbackOrder: ("new" | "revenge" | "retention")[] = [
+    preferred,
+    "new",
+    "revenge",
+    "retention",
+  ];
+
+  for (const stream of fallbackOrder) {
+    const pool = pools[stream];
+
+    if (pool.length === 0) {
+      continue;
+    }
+
+    const question =
+      stream === "new" ? pickNextQuestion(pool, rows, randomInt) : (pool[0] ?? null);
+
+    if (question) {
+      return { question, stream, forcedOptionId: null, mix, score };
+    }
+  }
+
+  // 全ストリームが空でも、除外した直近出題分に候補が残っていれば出す。
+  const anyPlayable = playableQuestions(questions, rows);
+  const question = pickNextQuestion(anyPlayable, rows, randomInt);
+  return question ? { question, stream: "new", forcedOptionId: null, mix, score } : null;
 }
 
 export function buildDomainSummaries(
