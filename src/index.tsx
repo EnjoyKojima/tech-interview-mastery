@@ -890,13 +890,24 @@ function missLabel(errorKind: ErrorKind | null): string {
 }
 
 function formatJst(sqlDate: string): string {
-  return parseSqlDate(sqlDate).toLocaleString("ja-JP", {
+  const date = parseSqlDate(sqlDate);
+  const jstDay = (value: Date) =>
+    value.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
+  const time = date.toLocaleTimeString("ja-JP", {
     timeZone: "Asia/Tokyo",
-    month: "numeric",
-    day: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
+
+  if (jstDay(date) === jstDay(new Date())) {
+    return time;
+  }
+
+  return `${date.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+  })} ${time}`;
 }
 
 function optionText(question: Question, optionId: string): string {
