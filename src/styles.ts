@@ -413,6 +413,82 @@ pre {
   border-color: var(--blue);
 }
 
+.callout.warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.flow-steps {
+  counter-reset: flow;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.flow-steps li {
+  position: relative;
+  counter-increment: flow;
+  padding: 7px 8px 7px 36px;
+}
+
+.flow-steps li::before {
+  content: counter(flow);
+  position: absolute;
+  top: 8px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e8f1ff;
+  color: #174ea6;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.flow-steps li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 34px;
+  bottom: -9px;
+  left: 11px;
+  width: 2px;
+  background: var(--line);
+}
+
+.flow-actor {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--blue);
+}
+
+.clarity {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.clarity p {
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+
+.clarity textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  resize: vertical;
+}
+
+.clarity .footer-actions {
+  margin-top: 10px;
+}
+
 .glossary {
   margin: 8px 0 0;
 }

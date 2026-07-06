@@ -205,7 +205,12 @@ export async function updateErrorKind(
              forced_option_id = CASE WHEN ? = 'confusion' THEN forced_option_id ELSE NULL END
          WHERE question_id = ? AND resolved = 0`,
       )
-      .bind(errorKind, totalAttempts + remediationDelayAttempts[errorKind], errorKind, event.question_id),
+      .bind(
+        errorKind,
+        totalAttempts + remediationDelayAttempts[errorKind],
+        errorKind,
+        event.question_id,
+      ),
   ]);
 }
 
@@ -280,9 +285,7 @@ export async function recordAnswer(
     }
   } else {
     const missHistory = await db
-      .prepare(
-        "SELECT selected_option_id FROM answer_events WHERE question_id = ? AND correct = 0",
-      )
+      .prepare("SELECT selected_option_id FROM answer_events WHERE question_id = ? AND correct = 0")
       .bind(question.id)
       .all<{ selected_option_id: string }>();
     const priorMisses = (missHistory.results ?? []).map(
@@ -364,7 +367,11 @@ export async function recordAnswer(
            SET error_kind = 'confusion', forced_option_id = ?, due_at_attempt = ?
            WHERE question_id = ? AND resolved = 0`,
         )
-        .bind(selectedOptionId, totalAttempts + 1 + remediationDelayAttempts.confusion, question.id),
+        .bind(
+          selectedOptionId,
+          totalAttempts + 1 + remediationDelayAttempts.confusion,
+          question.id,
+        ),
       db
         .prepare(
           `INSERT INTO remediation_queue (question_id, error_kind, forced_option_id, due_at_attempt)
@@ -399,6 +406,79 @@ export async function recordAnswer(
     eventId,
     streak,
   };
+}
+
+export type ClarityVerdict = "clear" | "unclear";
+
+export type GapEntry = {
+  id: number;
+  questionId: string;
+  note: string | null;
+  createdAt: string;
+};
+
+type GapRecord = {
+  id: number;
+  question_id: string;
+  note: string | null;
+  created_at: string;
+};
+
+export async function recordClarityFeedback(
+  db: D1Database,
+  questionId: string,
+  verdict: ClarityVerdict,
+  note: string | null,
+): Promise<void> {
+  const statements = [
+    db
+      .prepare("INSERT INTO explanation_feedback (question_id, verdict, note) VALUES (?, ?, ?)")
+      .bind(questionId, verdict, note),
+  ];
+
+  // スッキリした時点で、その問題の未解消モヤモヤは解消済みにする。
+  if (verdict === "clear") {
+    statements.push(
+      db
+        .prepare(
+          "UPDATE explanation_feedback SET resolved = 1 WHERE question_id = ? AND verdict = 'unclear' AND resolved = 0",
+        )
+        .bind(questionId),
+    );
+  }
+
+  await db.batch(statements);
+}
+
+export async function loadOpenGaps(db: D1Database): Promise<GapEntry[]> {
+  const result = await db
+    .prepare(
+      `SELECT id, question_id, note, created_at
+       FROM explanation_feedback
+       WHERE verdict = 'unclear' AND resolved = 0
+       ORDER BY created_at DESC, id DESC`,
+    )
+    .all<GapRecord>();
+
+  return (result.results ?? []).map((record) => ({
+    id: record.id,
+    questionId: record.question_id,
+    note: record.note,
+    createdAt: record.created_at,
+  }));
+}
+
+export async function countOpenGaps(db: D1Database): Promise<number> {
+  const record = await db
+    .prepare(
+      "SELECT COUNT(*) AS total FROM explanation_feedback WHERE verdict = 'unclear' AND resolved = 0",
+    )
+    .first<{ total: number }>();
+  return record?.total ?? 0;
+}
+
+export async function resolveGap(db: D1Database, id: number): Promise<void> {
+  await db.prepare("UPDATE explanation_feedback SET resolved = 1 WHERE id = ?").bind(id).run();
 }
 
 export async function resetProgress(db: D1Database): Promise<void> {

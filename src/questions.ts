@@ -1,5 +1,6 @@
 import { additionalQuestions } from "./additional-questions";
 import { withSharperDistractors } from "./distractor-overrides";
+import { withExplanationEnrichments } from "./explanation-enrichments";
 import { generatedQuestions } from "./generated-questions";
 import { glossaryByQuestionId } from "./glossary";
 import type { Question } from "./types";
@@ -163,6 +164,14 @@ const baseQuestions: Question[] = [
       { id: "d5", text: "DBの重複行を削除すること" },
     ],
     brief: "DNSは名前解決です。URL入力後の最初の重要ステップです。",
+    flow: [
+      "ブラウザ: 「example.com のIPアドレスは?」とOSに尋ねる（まず手元のキャッシュを確認）",
+      "リゾルバ: キャッシュになければ、ISPや8.8.8.8のようなフルリゾルバへ問い合わせる",
+      "フルリゾルバ: ルート → .com → example.com の権威サーバへと階層をたどる",
+      "権威サーバ: Aレコード（IPアドレス）を返す",
+      "ブラウザ: 得られたIPアドレスへTCP/TLS接続を開始する",
+    ],
+    nameOrigin: "DNS = Domain Name System。ドメイン名を管理・解決する分散システムの名前です。",
     interview:
       "ブラウザはホスト名から接続先を知る必要があります。DNSは階層的な仕組みで名前をIPアドレスなどに解決します。",
     relevance:
@@ -334,6 +343,12 @@ const baseQuestions: Question[] = [
       { id: "d5", text: "JavaScriptではメモリを使わないので関係ない" },
     ],
     brief: "ざっくり、関数呼び出しの流れに沿うのがスタック、動的なオブジェクト置き場がヒープです。",
+    misconception:
+      "「スタック=速い、ヒープ=遅い」の暗記だけでは不十分です。本質は寿命の管理方法の違いで、スタックの値は関数の終了と運命を共にし、ヒープの値は参照が切れてGCが回収するまで生き続けます。",
+    story:
+      "関数内の let n = 1 はスタックに積まれ、関数が返れば自動で消えます。一方 await loadAllUsers() で取った巨大配列の本体はヒープに置かれ、どこかから参照が残っている限り消えません。Node.jsで「メモリ使用量が増え続ける」ときに疑うのはヒープ側です。",
+    nameOrigin:
+      "スタック（stack）は「皿を積み上げる」イメージで、最後に積んだものを最初に降ろします（LIFO）。ヒープ（heap）は「雑多な山」という意味で、順序に縛られない置き場を指します（データ構造のヒープとは別物です）。",
     interview:
       "言語やランタイムで詳細は違いますが、関数呼び出しの管理と動的確保の違いとして説明できます。再帰やメモリリークの理解に繋がります。",
     relevance:
@@ -362,6 +377,10 @@ const baseQuestions: Question[] = [
       { id: "d5", text: "プロセスは暗号化、スレッドはハッシュ化のこと" },
     ],
     brief: "スレッドは軽いが共有による競合に注意、プロセスは分離が強いが重めです。",
+    misconception:
+      "スレッドが「軽い」のは、新しいメモリ空間を用意せず同じプロセスのメモリを共有するからです。その代償が競合状態（race condition）で、便利さと危うさは同じ「共有」から来ています。",
+    story:
+      "Chromeはタブごとに別プロセスなので、1つのタブがクラッシュしても他のタブは生き残ります。一方、同じプロセス内のスレッドが暴走すると、メモリを共有しているプロセス全体が道連れになります。「同じ事務所（プロセス）で机と書類を共有して働く作業員（スレッド）」のイメージです。",
     interview:
       "プロセスはメモリ空間が分かれ、スレッドは同じプロセス内でメモリを共有します。そのためスレッドは通信しやすい一方、競合やデッドロックに注意します。",
     relevance: "Webサーバの並行処理、Node.jsのWorker Threads、ブラウザ、DB接続プールの話で出ます。",
@@ -529,6 +548,17 @@ const baseQuestions: Question[] = [
       { id: "d5", text: "HTTPステータスコードをすべて200にする" },
     ],
     brief: "HTTPSはHTTP over TLSです。盗聴や改ざんから通信を守ります。",
+    misconception:
+      "公開鍵暗号でずっと通信するわけではありません。公開鍵暗号は計算が遅いので、最初の「鍵の合意」だけに使い、本文のやり取りは高速な共通鍵暗号で行います。共通鍵はサーバから送られてくるのではなく、鍵交換の計算で双方が同じ値を手元で作ります。",
+    flow: [
+      "ブラウザ: 接続要求と「使える暗号方式の一覧」を送る（ClientHello）",
+      "サーバ: 証明書（公開鍵入り）を返す（ServerHello）",
+      "ブラウザ: 証明書のCA署名を検証し、本物のサーバか確認する",
+      "両者: 鍵交換（DH系）で、盗聴者には計算できない共通の秘密を各自の手元で作る",
+      "両者: その秘密から共通鍵を導き、以降の通信はすべて共通鍵暗号で行う",
+    ],
+    nameOrigin:
+      "TLS = Transport Layer Security（トランスポート層の安全性）。SSLの後継規格で、名前は変わりましたが「SSL証明書」という呼び名が今も残っています。HTTPSのSはSecureです。",
     interview:
       "TLSにより、クライアントは証明書で接続先を確認し、通信内容を暗号化し、途中改ざんを検出できます。",
     relevance:
@@ -835,6 +865,19 @@ const baseQuestions: Question[] = [
       { id: "d5", text: "CSSファイルが大きい" },
     ],
     brief: "CSRFはログイン済みブラウザを利用して、意図しない操作を送らせる攻撃です。",
+    misconception:
+      "CSRFはCookieを「盗む」攻撃でも「書き換える」攻撃でもありません。攻撃者はCookieの中身を一度も見ないまま、「ブラウザは宛先サイトのCookieをリクエストに自動で添付する」という仕様だけを悪用します。盗むのはCookieではなく「あなたの操作権限」です。",
+    flow: [
+      "あなた: 銀行サイトにログインする（ブラウザにセッションCookieが保存される）",
+      "攻撃者: 開いただけで銀行宛の送金POSTを自動送信する罠ページを作り、メールやSNSで踏ませる",
+      "あなた: ログアウトしないまま罠ページを開く",
+      "ブラウザ: 罠ページ内のフォームを銀行へPOSTする。宛先が銀行なので、銀行のCookieを自動で添付する",
+      "銀行サーバ: 正規のCookie付きリクエストなので「本人の操作」と判断し、送金を実行する",
+    ],
+    story:
+      "有名な実例が2005年のmixi「ぼくはまちちゃん」事件で、罠リンクを踏んだログイン済みユーザーが意図せず同じ日記を投稿させられました。送金、メールアドレス変更（アカウント乗っ取りの足がかり）、退会、商品購入など「ログイン済みならリクエスト1本で完了する操作」がすべて標的になります。攻撃者は結果画面を読めなくても、操作が実行された時点で目的を達成しています。",
+    nameOrigin:
+      "CSRF = Cross-Site Request Forgery。「サイトをまたいで（Cross-Site）リクエストを偽造する（Forgery）」の意味で、偽造されるのは「本人が自分の意思で送った」という事実です。",
     interview:
       "CSRFトークン、SameSite Cookie、重要操作の再認証、状態変更をGETにしない設計などで対策します。",
     relevance:
@@ -1419,6 +1462,8 @@ function withGlossary(items: readonly Question[]): Question[] {
   }));
 }
 
-export const questions = withGlossary(
-  withSharperDistractors([...baseQuestions, ...additionalQuestions, ...generatedQuestions]),
+export const questions = withExplanationEnrichments(
+  withGlossary(
+    withSharperDistractors([...baseQuestions, ...additionalQuestions, ...generatedQuestions]),
+  ),
 );

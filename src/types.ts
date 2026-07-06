@@ -31,6 +31,14 @@ export type Question = {
   deeper: string[];
   glossary?: GlossaryEntry[];
   diagram?: string;
+  // 「アクター: 行動」形式のステップ列。誰が何をどの順でするかを示す。
+  flow?: string[];
+  // 実害や内部動作が想像できる具体的な1シーン。
+  story?: string;
+  // 混同・逆向き理解など、ありがちな誤解の先回り訂正。
+  misconception?: string;
+  // 用語の語源・略語の展開。記憶のフックにする。
+  nameOrigin?: string;
 };
 
 export type ProgressRow = {

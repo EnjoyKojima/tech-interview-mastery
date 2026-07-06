@@ -216,9 +216,7 @@ export function pickAdaptiveQuestion(input: {
   );
   const notRecent = (question: Question) => !recentIds.has(question.id);
   const retention = retentionDueQuestions(questions, rows, now).filter(notRecent);
-  const revenge = countableQuestions(reviewQuestions(questions, rows), rows, now).filter(
-    notRecent,
-  );
+  const revenge = countableQuestions(reviewQuestions(questions, rows), rows, now).filter(notRecent);
   const revengeIds = new Set(revenge.map((question) => question.id));
   const fresh = countableQuestions(playableQuestions(questions, rows), rows, now).filter(
     (question) => !revengeIds.has(question.id) && notRecent(question),
@@ -271,8 +269,7 @@ export function pickAdaptiveQuestion(input: {
       continue;
     }
 
-    const question =
-      stream === "new" ? pickNextQuestion(pool, rows, randomInt) : (pool[0] ?? null);
+    const question = stream === "new" ? pickNextQuestion(pool, rows, randomInt) : (pool[0] ?? null);
 
     if (question) {
       return {

@@ -2,15 +2,20 @@ import { Hono } from "hono";
 import type { Child } from "hono/jsx";
 import { verifyBasicAuth, unauthorizedResponse } from "./auth";
 import {
+  countOpenGaps,
   loadDueRemediation,
+  loadOpenGaps,
   loadProgress,
   loadRecentAnswerEvents,
   loadStreakState,
   recordAnswer,
+  recordClarityFeedback,
   resetCurrentStreak,
   resetProgress,
+  resolveGap,
   updateErrorKind,
   type AnswerResult,
+  type GapEntry,
   type RecentAnswerEvent,
 } from "./db";
 import { buildChoices, correctOptions, cryptoRandomInt } from "./random";
@@ -70,7 +75,8 @@ app.use("*", async (context, next) => {
 app.get("/", async (context) => {
   await resetCurrentStreak(context.env.DB);
   const rows = await loadProgress(context.env.DB);
-  return context.html(<HomePage rows={rows} />);
+  const openGaps = await countOpenGaps(context.env.DB);
+  return context.html(<HomePage rows={rows} openGaps={openGaps} />);
 });
 
 app.get("/play", async (context) => {
@@ -167,11 +173,48 @@ app.post("/reclassify", async (context) => {
   const kind = String(body.kind ?? "");
   const mode = body.mode === "review" ? "review" : "play";
 
-  if (Number.isInteger(eventId) && (kind === "slip" || kind === "confusion" || kind === "unknown")) {
+  if (
+    Number.isInteger(eventId) &&
+    (kind === "slip" || kind === "confusion" || kind === "unknown")
+  ) {
     await updateErrorKind(context.env.DB, eventId, kind);
   }
 
   return context.redirect(mode === "review" ? "/review" : "/play");
+});
+
+app.post("/clarity", async (context) => {
+  const body = await context.req.parseBody();
+  const questionId = String(body.questionId ?? "");
+  const rawVerdict = String(body.verdict ?? "");
+  const verdict = rawVerdict === "clear" || rawVerdict === "unclear" ? rawVerdict : null;
+  const note = String(body.note ?? "")
+    .trim()
+    .slice(0, 2000);
+  const next = String(body.next ?? "/play");
+  const nextHref = next.startsWith("/") && !next.startsWith("//") ? next : "/play";
+
+  if (verdict && questions.some((candidate) => candidate.id === questionId)) {
+    await recordClarityFeedback(context.env.DB, questionId, verdict, note || null);
+  }
+
+  return context.redirect(nextHref);
+});
+
+app.get("/gaps", async (context) => {
+  const gaps = await loadOpenGaps(context.env.DB);
+  return context.html(<GapsPage gaps={gaps} />);
+});
+
+app.post("/gaps/resolve", async (context) => {
+  const body = await context.req.parseBody();
+  const id = Number(body.id ?? Number.NaN);
+
+  if (Number.isInteger(id)) {
+    await resolveGap(context.env.DB, id);
+  }
+
+  return context.redirect("/gaps");
 });
 
 app.get("/checkpoint", async (context) => {
@@ -240,6 +283,7 @@ function Shell({ title, children }: { title: string; children: Child }) {
                 <a href="/play">解く</a>
                 <a href="/review">復習</a>
                 <a href="/status">現在地</a>
+                <a href="/gaps">モヤモヤ</a>
                 <a href="/diagrams">図解</a>
               </nav>
             </div>
@@ -251,7 +295,7 @@ function Shell({ title, children }: { title: string; children: Child }) {
   );
 }
 
-function HomePage({ rows }: { rows: ProgressRow[] }) {
+function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number }) {
   const activeLevel = currentLevel(questions, rows);
   const levelSummaries = buildLevelSummaries(questions, rows);
   const domainSummaries = buildDomainSummaries(questions, rows);
@@ -298,6 +342,12 @@ function HomePage({ rows }: { rows: ProgressRow[] }) {
             <div class="stat">
               <b>{misses}</b>
               <span>misses logged</span>
+            </div>
+            <div class="stat">
+              <b>{openGaps}</b>
+              <span>
+                <a href="/gaps">モヤモヤ未解消</a>
+              </span>
             </div>
           </div>
         </section>
@@ -414,7 +464,7 @@ function AnswerPage({
   selectedOptionId: string;
   stream: StreamKind | null;
 }) {
-  const { correct, counted, errorKind, wasRetentionCheck, lapsed, streak } = answer;
+  const { correct, errorKind, streak } = answer;
   const progress = progressFor(question, rows);
   const selectedText = optionText(question, selectedOptionId);
   const totalAttempts = rows.reduce((sum, row) => sum + row.attempts, 0);
@@ -465,6 +515,25 @@ function AnswerPage({
         </div>
         {compact ? null : (
           <div class="detail-list" style="margin-top: 16px;">
+            {question.misconception ? (
+              <div class="callout warn">
+                <strong>⚠ ここを混同しやすい</strong>
+                <p>{question.misconception}</p>
+              </div>
+            ) : null}
+            {question.flow ? <FlowSteps steps={question.flow} /> : null}
+            {question.story ? (
+              <div class="callout">
+                <strong>具体的なシーン</strong>
+                <p>{question.story}</p>
+              </div>
+            ) : null}
+            {question.nameOrigin ? (
+              <div class="callout">
+                <strong>名前の由来</strong>
+                <p>{question.nameOrigin}</p>
+              </div>
+            ) : null}
             {question.glossary && question.glossary.length > 0 ? (
               <div class="callout">
                 <strong>用語解説</strong>
@@ -494,13 +563,12 @@ function AnswerPage({
             {question.deeper.map((line) => (
               <div class="callout">{line}</div>
             ))}
+            <ClarityForm questionId={question.id} nextHref={nextHref} />
           </div>
         )}
         {!correct && answer.eventId !== null ? (
           <form method="post" action="/reclassify" class="reclassify">
-            <span class="muted">
-              判定: {missLabel(errorKind)} — 違っていたら修正:
-            </span>
+            <span class="muted">判定: {missLabel(errorKind)} — 違っていたら修正:</span>
             <input type="hidden" name="eventId" value={String(answer.eventId)} />
             <input type="hidden" name="mode" value={mode} />
             <button type="submit" name="kind" value="slip">
@@ -520,6 +588,114 @@ function AnswerPage({
           </a>
           <a class="button" href="/status">
             現在地を見る
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+function FlowSteps({ steps }: { steps: string[] }) {
+  return (
+    <div class="callout">
+      <strong>流れで理解する（誰が・何を・どの順で）</strong>
+      <ol class="flow-steps">
+        {steps.map((step) => {
+          const splitAt = step.indexOf(": ");
+          const actor = splitAt > 0 ? step.slice(0, splitAt) : null;
+          const action = splitAt > 0 ? step.slice(splitAt + 2) : step;
+
+          return (
+            <li>
+              {actor ? <b class="flow-actor">{actor}</b> : null}
+              <span>{action}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function ClarityForm({ questionId, nextHref }: { questionId: string; nextHref: string }) {
+  return (
+    <form method="post" action="/clarity" class="clarity">
+      <strong>この解説で腹落ちできましたか?</strong>
+      <p class="muted">
+        引っかかった点を書いて「まだモヤモヤ」を押すと記録され、あとで解説の改善に使えます。
+      </p>
+      <input type="hidden" name="questionId" value={questionId} />
+      <input type="hidden" name="next" value={nextHref} />
+      <textarea
+        name="note"
+        rows={2}
+        placeholder="何が引っかかっている?（例: 公開鍵で検証OKって、何がどうなること?）"
+      ></textarea>
+      <div class="footer-actions">
+        <button type="submit" name="verdict" value="clear">
+          スッキリした → 次へ
+        </button>
+        <button type="submit" name="verdict" value="unclear" class="danger">
+          まだモヤモヤ → 記録して次へ
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function GapsPage({ gaps }: { gaps: GapEntry[] }) {
+  return (
+    <Shell title="モヤモヤ一覧">
+      <section class="question panel">
+        <span class="eyebrow">Feedback loop</span>
+        <h1>解消していないモヤモヤ: {gaps.length}件</h1>
+        <p class="lead">
+          解説を読んでも腹落ちしなかった記録です。外部のAIに聞いて理解できたら「解消した」で閉じてください。
+          たまった記録は解説文の改善材料になります。
+        </p>
+        {gaps.length === 0 ? (
+          <div class="callout">
+            <strong>未解消のモヤモヤはありません。</strong>
+            <p class="muted">解説で引っかかったら、回答画面の「まだモヤモヤ」で記録できます。</p>
+          </div>
+        ) : (
+          <div class="detail-list" style="margin-top: 16px;">
+            {gaps.map((gap) => {
+              const question = questions.find((candidate) => candidate.id === gap.questionId);
+
+              return (
+                <div class="callout">
+                  {question ? (
+                    <span class="badge amber">
+                      Level {question.level} / {domainLabel(question.domain)}
+                    </span>
+                  ) : null}
+                  <p>
+                    <strong>問題:</strong> {question ? question.prompt : gap.questionId}
+                  </p>
+                  {gap.note ? (
+                    <p>
+                      <strong>引っかかった点:</strong> {gap.note}
+                    </p>
+                  ) : (
+                    <p class="muted">メモなし（解説全体が腹落ちしていない状態）</p>
+                  )}
+                  <p class="muted">{formatJst(gap.createdAt)}</p>
+                  <form method="post" action="/gaps/resolve" class="footer-actions">
+                    <input type="hidden" name="id" value={String(gap.id)} />
+                    <button type="submit">解消した</button>
+                  </form>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div class="footer-actions">
+          <a class="button primary" href="/play">
+            解く
+          </a>
+          <a class="button" href="/">
+            現在地へ戻る
           </a>
         </div>
       </section>
@@ -595,7 +771,13 @@ function SchedulerNote({ answer, stream }: { answer: AnswerResult; stream: Strea
   );
 }
 
-function CheckpointPage({ mode, events }: { mode: "play" | "review"; events: RecentAnswerEvent[] }) {
+function CheckpointPage({
+  mode,
+  events,
+}: {
+  mode: "play" | "review";
+  events: RecentAnswerEvent[];
+}) {
   const continueHref = mode === "review" ? "/review" : "/play";
   const mistakes: RecentAnswerEvent[] = [];
   const seen = new Set<string>();
@@ -622,9 +804,7 @@ function CheckpointPage({ mode, events }: { mode: "play" | "review"; events: Rec
         ) : (
           <div class="detail-list">
             {mistakes.map((mistake) => {
-              const question = questions.find(
-                (candidate) => candidate.id === mistake.questionId,
-              );
+              const question = questions.find((candidate) => candidate.id === mistake.questionId);
 
               if (!question) {
                 return null;
@@ -889,10 +1069,10 @@ function missLabel(errorKind: ErrorKind | null): string {
   }
 }
 
+const jstDay = (value: Date) => value.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
+
 function formatJst(sqlDate: string): string {
   const date = parseSqlDate(sqlDate);
-  const jstDay = (value: Date) =>
-    value.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
   const time = date.toLocaleTimeString("ja-JP", {
     timeZone: "Asia/Tokyo",
     hour: "numeric",
@@ -912,9 +1092,8 @@ function formatJst(sqlDate: string): string {
 
 function optionText(question: Question, optionId: string): string {
   return (
-    [...correctOptions(question), ...question.distractors].find(
-      (choice) => choice.id === optionId,
-    )?.text ?? "未選択"
+    [...correctOptions(question), ...question.distractors].find((choice) => choice.id === optionId)
+      ?.text ?? "未選択"
   );
 }
 
