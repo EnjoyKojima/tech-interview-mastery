@@ -474,7 +474,6 @@ function AnswerPage({
     : mode === "review"
       ? "/review"
       : "/play";
-  const compact = errorKind === "slip";
 
   return (
     <Shell title={correct ? "正解" : "復習ポイント"}>
@@ -493,7 +492,7 @@ function AnswerPage({
             <strong>あなたの回答:</strong> {selectedText}
           </p>
           <p>
-            <strong>正解:</strong> {question.correct.text}
+            <strong>正解:</strong> {correctAnswerText(question)}
           </p>
           <p>{question.brief}</p>
         </div>
@@ -513,59 +512,12 @@ function AnswerPage({
             <span>misses</span>
           </div>
         </div>
-        {compact ? null : (
-          <div class="detail-list" style="margin-top: 16px;">
-            {question.misconception ? (
-              <div class="callout warn">
-                <strong>⚠ ここを混同しやすい</strong>
-                <p>{question.misconception}</p>
-              </div>
-            ) : null}
-            {question.flow ? <FlowSteps steps={question.flow} /> : null}
-            {question.story ? (
-              <div class="callout">
-                <strong>具体的なシーン</strong>
-                <p>{question.story}</p>
-              </div>
-            ) : null}
-            {question.nameOrigin ? (
-              <div class="callout">
-                <strong>名前の由来</strong>
-                <p>{question.nameOrigin}</p>
-              </div>
-            ) : null}
-            {question.glossary && question.glossary.length > 0 ? (
-              <div class="callout">
-                <strong>用語解説</strong>
-                <dl class="glossary">
-                  {question.glossary.map((entry) => (
-                    <>
-                      <dt>{entry.term}</dt>
-                      <dd>{entry.description}</dd>
-                    </>
-                  ))}
-                </dl>
-              </div>
-            ) : null}
-            <div class="callout">
-              <strong>面接での答え方</strong>
-              <p>{question.interview}</p>
-            </div>
-            <div class="callout">
-              <strong>Webエンジニア実務との関係</strong>
-              <p>{question.relevance}</p>
-            </div>
-            <div class="callout">
-              <strong>次に理解すること</strong>
-              <p>{question.next}</p>
-            </div>
-            {question.diagram ? <pre>{question.diagram}</pre> : null}
-            {question.deeper.map((line) => (
-              <div class="callout">{line}</div>
-            ))}
-            <ClarityForm questionId={question.id} nextHref={nextHref} />
-          </div>
-        )}
+        <AnswerExplanation
+          correct={correct}
+          nextHref={nextHref}
+          question={question}
+          selectedOptionId={selectedOptionId}
+        />
         {!correct && answer.eventId !== null ? (
           <form method="post" action="/reclassify" class="reclassify">
             <span class="muted">判定: {missLabel(errorKind)} — 違っていたら修正:</span>
@@ -592,6 +544,93 @@ function AnswerPage({
         </div>
       </section>
     </Shell>
+  );
+}
+
+function AnswerExplanation({
+  correct,
+  nextHref,
+  question,
+  selectedOptionId,
+}: {
+  correct: boolean;
+  nextHref: string;
+  question: Question;
+  selectedOptionId: string;
+}) {
+  return (
+    <div class="detail-list" style="margin-top: 16px;">
+      <div class="callout understanding">
+        <strong>初読でつかむ順番</strong>
+        <ol class="understanding-steps">
+          <li>
+            <b>何を聞かれているか</b>
+            <span>{learningLens(question)}</span>
+          </li>
+          <li>
+            <b>正解の芯</b>
+            <span>{question.brief}</span>
+          </li>
+          <li>
+            <b>選択肢の見分け方</b>
+            <span>{selectionContrast(question, selectedOptionId, correct)}</span>
+          </li>
+          <li>
+            <b>次に問われたら</b>
+            <span>{recallCue(question)}</span>
+          </li>
+        </ol>
+      </div>
+      {question.misconception ? (
+        <div class="callout warn">
+          <strong>ここを混同しやすい</strong>
+          <p>{question.misconception}</p>
+        </div>
+      ) : null}
+      {question.flow ? <FlowSteps steps={question.flow} /> : null}
+      {question.story ? (
+        <div class="callout">
+          <strong>具体的なシーン</strong>
+          <p>{question.story}</p>
+        </div>
+      ) : null}
+      {question.nameOrigin ? (
+        <div class="callout">
+          <strong>名前の由来</strong>
+          <p>{question.nameOrigin}</p>
+        </div>
+      ) : null}
+      {question.glossary && question.glossary.length > 0 ? (
+        <div class="callout">
+          <strong>用語解説</strong>
+          <dl class="glossary">
+            {question.glossary.map((entry) => (
+              <>
+                <dt>{entry.term}</dt>
+                <dd>{entry.description}</dd>
+              </>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+      <div class="callout">
+        <strong>面接での答え方</strong>
+        <p>{question.interview}</p>
+      </div>
+      <div class="callout">
+        <strong>Webエンジニア実務との関係</strong>
+        <p>{question.relevance}</p>
+      </div>
+      <div class="callout">
+        <strong>次に理解すること</strong>
+        <p>{question.next}</p>
+      </div>
+      {question.diagram ? <pre>{question.diagram}</pre> : null}
+      {question.deeper.map((line) => (
+        <div class="callout">{line}</div>
+      ))}
+      <ClarityForm questionId={question.id} nextHref={nextHref} />
+    </div>
   );
 }
 
@@ -822,9 +861,12 @@ function CheckpointPage({
                     <strong>あなたの回答:</strong> {optionText(question, mistake.selectedOptionId)}
                   </p>
                   <p>
-                    <strong>正解:</strong> {question.correct.text}
+                    <strong>正解:</strong> {correctAnswerText(question)}
                   </p>
                   <p class="muted">{question.brief}</p>
+                  <p>
+                    <strong>次に問われたら:</strong> {recallCue(question)}
+                  </p>
                 </div>
               );
             })}
@@ -1088,6 +1130,98 @@ function formatJst(sqlDate: string): string {
     month: "numeric",
     day: "numeric",
   })} ${time}`;
+}
+
+function correctAnswerText(question: Question): string {
+  return correctOptions(question)
+    .map((option) => option.text)
+    .join(" / ");
+}
+
+function learningLens(question: Question): string {
+  const lenses: Record<Domain, string> = {
+    computer: "OS、CPU、メモリ、DBなどのどこで何が起きるかを切り分けます。",
+    design: "責務、変更理由、契約、トレードオフのどれを問われているかを見ます。",
+    network: "クライアント、ブラウザ、DNS、サーバ、プロキシの誰が何を送るかを追います。",
+    security: "守る資産、攻撃者ができること、ブラウザやサーバの自動挙動を分けます。",
+  };
+
+  return `${lenses[question.domain]}今回のタグは ${question.tags.join(", ")} です。`;
+}
+
+function selectionContrast(question: Question, selectedOptionId: string, correct: boolean): string {
+  if (correct) {
+    return `選んだ選択肢は正解です。次は「${correctAnswerText(question)}」を自分の言葉で説明できるか確認します。`;
+  }
+
+  const selected = optionText(question, selectedOptionId);
+  const hints: Record<Domain, string> = {
+    computer: "処理の場所、寿命、所有者、同期の境界が正解とずれています。",
+    design: "変更に強くする軸、責務の分け方、契約の守り方が正解とずれています。",
+    network: "通信の層、登場人物、リクエストが届く順番が正解とずれています。",
+    security: "攻撃者の能力、守る対象、対策が効く場所が正解とずれています。",
+  };
+
+  return `あなたの回答は「${selected}」。${hints[question.domain]}正解は「${correctAnswerText(question)}」です。`;
+}
+
+function recallCue(question: Question): string {
+  if (hasQuestionTag(question, "csrf")) {
+    return "Cookieを盗む攻撃ではなく、ブラウザがログインCookieを自動で付けてしまう攻撃だと説明する。";
+  }
+
+  if (hasQuestionTag(question, "digital-signature")) {
+    return "署名は秘密鍵で作る、検証は公開鍵で行う。確認できるのは本人性と非改ざん性。";
+  }
+
+  if (hasQuestionTag(question, "tls") || hasQuestionTag(question, "https")) {
+    return "証明書で相手を確認し、鍵交換で共通鍵を作り、その後は共通鍵暗号で通信する。";
+  }
+
+  if (hasQuestionTag(question, "dns") || hasQuestionTag(question, "name-resolution")) {
+    return "DNSは名前をIPなどに解決する仕組み。AはAddress、CNAMEはCanonical Name。";
+  }
+
+  if (hasQuestionTag(question, "stack-heap")) {
+    return "スタックは関数呼び出しに連動する自動管理領域、ヒープは動的に確保する自由な領域。";
+  }
+
+  if (hasQuestionTag(question, "process-thread")) {
+    return "プロセスはアプリの実行単位、スレッドは同じプロセス内の実行の流れ。共有メモリに注意する。";
+  }
+
+  if (hasQuestionTag(question, "ip-address")) {
+    return "IPアドレスはネットワーク上の宛先を示す住所。パケットは宛先IPなどを持つ小分けデータ。";
+  }
+
+  if (hasQuestionTag(question, "cookie") || hasQuestionTag(question, "session")) {
+    return "Cookieはブラウザが保存し、条件に合うリクエストへ自動添付する小さなデータ。";
+  }
+
+  if (hasQuestionTag(question, "xss")) {
+    return "攻撃者の入力がブラウザでスクリプトとして実行される問題。出力時の文脈別エスケープが軸。";
+  }
+
+  if (hasQuestionTag(question, "cors")) {
+    return "CORSは別オリジンのレスポンスをJavaScriptに渡してよいかをブラウザが判断する仕組み。";
+  }
+
+  if (hasQuestionTag(question, "open-closed")) {
+    return "新機能は追加で広げ、動いている既存コードの書き換えを減らす設計だと説明する。";
+  }
+
+  const defaults: Record<Domain, string> = {
+    computer: "まず実行場所、データの置き場所、時間の流れを言葉にしてから選ぶ。",
+    design: "まず何の変更に強くしたいか、どの責務を分けるかを言葉にしてから選ぶ。",
+    network: "まず登場人物と通信の順番を並べ、どの層の話かを言葉にしてから選ぶ。",
+    security: "まず攻撃者が何をできて、何を守りたいかを言葉にしてから選ぶ。",
+  };
+
+  return defaults[question.domain];
+}
+
+function hasQuestionTag(question: Question, tag: string): boolean {
+  return question.tags.includes(tag) || question.id.includes(tag);
 }
 
 function optionText(question: Question, optionId: string): string {

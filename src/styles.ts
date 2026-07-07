@@ -418,6 +418,36 @@ pre {
   background: #fffbeb;
 }
 
+.callout.understanding {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.understanding-steps {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.understanding-steps li {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid #dbeafe;
+  padding-top: 10px;
+}
+
+.understanding-steps li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.understanding-steps b {
+  color: #174ea6;
+}
+
 .flow-steps {
   counter-reset: flow;
   list-style: none;
@@ -516,6 +546,10 @@ pre {
 
   .dashboard,
   .stat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .understanding-steps li {
     grid-template-columns: 1fr;
   }
 }

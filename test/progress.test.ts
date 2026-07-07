@@ -21,6 +21,25 @@ describe("question bank", () => {
     expect(choices).toHaveLength(4);
     expect(choices.some((choice) => isCorrectOption(questions[0], choice.id))).toBe(true);
   });
+
+  it("adds first-read explanation support to every level 1-5 question", () => {
+    const targetQuestions = questions.filter(
+      (question) => question.level >= 1 && question.level <= 5,
+    );
+    const uncovered = targetQuestions
+      .filter(
+        (question) =>
+          !question.misconception ||
+          !question.story ||
+          !question.flow ||
+          question.flow.length < 3 ||
+          question.flow.some((step) => !step.includes(": ")),
+      )
+      .map((question) => question.id);
+
+    expect(targetQuestions).toHaveLength(200);
+    expect(uncovered).toEqual([]);
+  });
 });
 
 describe("streaks", () => {
