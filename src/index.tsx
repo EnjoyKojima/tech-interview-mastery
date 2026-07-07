@@ -600,35 +600,40 @@ function AnswerExplanation({
           <p>{question.nameOrigin}</p>
         </div>
       ) : null}
-      {question.glossary && question.glossary.length > 0 ? (
-        <div class="callout">
-          <strong>用語解説</strong>
-          <dl class="glossary">
-            {question.glossary.map((entry) => (
-              <>
-                <dt>{entry.term}</dt>
-                <dd>{entry.description}</dd>
-              </>
-            ))}
-          </dl>
+      <details class="more-detail">
+        <summary>さらに深く（面接での答え方・実務との関係・用語解説）</summary>
+        <div class="detail-list" style="margin-top: 12px;">
+          <div class="callout">
+            <strong>面接での答え方</strong>
+            <p>{question.interview}</p>
+          </div>
+          <div class="callout">
+            <strong>Webエンジニア実務との関係</strong>
+            <p>{question.relevance}</p>
+          </div>
+          {question.glossary && question.glossary.length > 0 ? (
+            <div class="callout">
+              <strong>用語解説</strong>
+              <dl class="glossary">
+                {question.glossary.map((entry) => (
+                  <>
+                    <dt>{entry.term}</dt>
+                    <dd>{entry.description}</dd>
+                  </>
+                ))}
+              </dl>
+            </div>
+          ) : null}
+          {question.diagram ? <pre>{question.diagram}</pre> : null}
+          {question.deeper.map((line) => (
+            <div class="callout">{line}</div>
+          ))}
+          <div class="callout">
+            <strong>次に理解すること</strong>
+            <p>{question.next}</p>
+          </div>
         </div>
-      ) : null}
-      <div class="callout">
-        <strong>面接での答え方</strong>
-        <p>{question.interview}</p>
-      </div>
-      <div class="callout">
-        <strong>Webエンジニア実務との関係</strong>
-        <p>{question.relevance}</p>
-      </div>
-      <div class="callout">
-        <strong>次に理解すること</strong>
-        <p>{question.next}</p>
-      </div>
-      {question.diagram ? <pre>{question.diagram}</pre> : null}
-      {question.deeper.map((line) => (
-        <div class="callout">{line}</div>
-      ))}
+      </details>
       <ClarityForm questionId={question.id} nextHref={nextHref} />
     </div>
   );
