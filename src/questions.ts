@@ -1,4 +1,5 @@
 import { additionalQuestions } from "./additional-questions";
+import { withBalancedOptions } from "./advanced-options";
 import { withSharperDistractors } from "./distractor-overrides";
 import { withExplanationEnrichments } from "./explanation-enrichments";
 import { generatedQuestions } from "./generated-questions";
@@ -1464,6 +1465,8 @@ function withGlossary(items: readonly Question[]): Question[] {
 
 export const questions = withExplanationEnrichments(
   withGlossary(
-    withSharperDistractors([...baseQuestions, ...additionalQuestions, ...generatedQuestions]),
+    withBalancedOptions(
+      withSharperDistractors([...baseQuestions, ...additionalQuestions, ...generatedQuestions]),
+    ),
   ),
 );

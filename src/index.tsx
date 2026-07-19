@@ -44,6 +44,7 @@ import {
   type ErrorKind,
   type LevelClearanceSummary,
   type LevelSummary,
+  type Option,
   type ProgressRow,
   type Question,
   type StreakState,
@@ -466,7 +467,8 @@ function AnswerPage({
 }) {
   const { correct, errorKind, streak } = answer;
   const progress = progressFor(question, rows);
-  const selectedText = optionText(question, selectedOptionId);
+  const selectedOption = optionForId(question, selectedOptionId);
+  const selectedText = selectedOption?.text ?? "未選択";
   const totalAttempts = rows.reduce((sum, row) => sum + row.attempts, 0);
   const checkpointDue = totalAttempts > 0 && totalAttempts % checkpointInterval === 0;
   const nextHref = checkpointDue
@@ -482,7 +484,13 @@ function AnswerPage({
           {correct ? "正解" : missLabel(errorKind)}
         </span>
         <StreakBadge streak={streak} />
-        <h1>{resultHeadline(answer)}</h1>
+        <h1>{resultHeadline(answer, selectedOption)}</h1>
+        {!correct && selectedOption?.kind === "trap" ? (
+          <div class="callout warn">
+            <strong>引っかけポイント</strong>
+            <p>{selectedOption.feedback}</p>
+          </div>
+        ) : null}
         <SchedulerNote answer={answer} stream={stream} />
         <div class="callout">
           <p>
@@ -747,7 +755,7 @@ function GapsPage({ gaps }: { gaps: GapEntry[] }) {
   );
 }
 
-function resultHeadline(answer: AnswerResult): string {
+function resultHeadline(answer: AnswerResult, selectedOption?: Option): string {
   if (answer.correct) {
     if (answer.wasRetentionCheck && answer.counted) {
       return "記憶チェック成功。この知識は定着しています。";
@@ -762,6 +770,10 @@ function resultHeadline(answer: AnswerResult): string {
 
   if (answer.lapsed) {
     return "マスター済みでしたが忘れかけています。現役プールに戻しました。";
+  }
+
+  if (selectedOption?.kind === "trap") {
+    return "引っかかったね。前提のずれを見抜こう。";
   }
 
   switch (answer.errorKind) {
@@ -1230,9 +1242,12 @@ function hasQuestionTag(question: Question, tag: string): boolean {
 }
 
 function optionText(question: Question, optionId: string): string {
-  return (
-    [...correctOptions(question), ...question.distractors].find((choice) => choice.id === optionId)
-      ?.text ?? "未選択"
+  return optionForId(question, optionId)?.text ?? "未選択";
+}
+
+function optionForId(question: Question, optionId: string): Option | undefined {
+  return [...correctOptions(question), ...question.distractors].find(
+    (choice) => choice.id === optionId,
   );
 }
 
