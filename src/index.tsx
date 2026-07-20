@@ -512,12 +512,7 @@ function AnswerPage({
             <span>misses</span>
           </div>
         </div>
-        <AnswerExplanation
-          correct={correct}
-          nextHref={nextHref}
-          question={question}
-          selectedOptionId={selectedOptionId}
-        />
+        <AnswerExplanation nextHref={nextHref} question={question} />
         {!correct && answer.eventId !== null ? (
           <form method="post" action="/reclassify" class="reclassify">
             <span class="muted">判定: {missLabel(errorKind)} — 違っていたら修正:</span>
@@ -547,17 +542,7 @@ function AnswerPage({
   );
 }
 
-function AnswerExplanation({
-  correct,
-  nextHref,
-  question,
-  selectedOptionId,
-}: {
-  correct: boolean;
-  nextHref: string;
-  question: Question;
-  selectedOptionId: string;
-}) {
+function AnswerExplanation({ nextHref, question }: { nextHref: string; question: Question }) {
   return (
     <div class="detail-list" style="margin-top: 16px;">
       <div class="callout understanding">
@@ -570,10 +555,6 @@ function AnswerExplanation({
           <li>
             <b>正解の芯</b>
             <span>{question.brief}</span>
-          </li>
-          <li>
-            <b>選択肢の見分け方</b>
-            <span>{selectionContrast(question, selectedOptionId, correct)}</span>
           </li>
           <li>
             <b>次に問われたら</b>
@@ -1152,22 +1133,6 @@ function learningLens(question: Question): string {
   };
 
   return `${lenses[question.domain]}今回のタグは ${question.tags.join(", ")} です。`;
-}
-
-function selectionContrast(question: Question, selectedOptionId: string, correct: boolean): string {
-  if (correct) {
-    return `選んだ選択肢は正解です。次は「${correctAnswerText(question)}」を自分の言葉で説明できるか確認します。`;
-  }
-
-  const selected = optionText(question, selectedOptionId);
-  const hints: Record<Domain, string> = {
-    computer: "処理の場所、寿命、所有者、同期の境界が正解とずれています。",
-    design: "変更に強くする軸、責務の分け方、契約の守り方が正解とずれています。",
-    network: "通信の層、登場人物、リクエストが届く順番が正解とずれています。",
-    security: "攻撃者の能力、守る対象、対策が効く場所が正解とずれています。",
-  };
-
-  return `あなたの回答は「${selected}」。${hints[question.domain]}正解は「${correctAnswerText(question)}」です。`;
 }
 
 function recallCue(question: Question): string {
