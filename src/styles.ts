@@ -35,52 +35,11 @@ a {
   min-height: 100vh;
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  border-bottom: 1px solid var(--line);
-  background: rgb(255 255 255 / 94%);
-  backdrop-filter: blur(10px);
-}
-
-.topbar-inner,
 .main {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
 }
 
-.topbar-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  min-height: 64px;
-}
-
-.brand {
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
-}
-
-.brand strong {
-  font-size: 16px;
-}
-
-.brand span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.nav a,
 .button,
 button {
   display: inline-flex;
@@ -538,12 +497,6 @@ pre {
 }
 
 @media (max-width: 800px) {
-  .topbar-inner {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 12px 0;
-  }
-
   .dashboard,
   .stat-row {
     grid-template-columns: 1fr;

@@ -273,21 +273,6 @@ function Shell({ title, children }: { title: string; children: Child }) {
       </head>
       <body>
         <div class="shell">
-          <header class="topbar">
-            <div class="topbar-inner">
-              <a class="brand" href="/">
-                <strong>Tech Interview Mastery</strong>
-                <span>Webエンジニア基礎力</span>
-              </a>
-              <nav class="nav" aria-label="Main navigation">
-                <a href="/play">解く</a>
-                <a href="/review">復習</a>
-                <a href="/status">現在地</a>
-                <a href="/gaps">モヤモヤ</a>
-                <a href="/diagrams">図解</a>
-              </nav>
-            </div>
-          </header>
           <main class="main">{children}</main>
         </div>
       </body>
