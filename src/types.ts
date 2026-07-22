@@ -8,6 +8,8 @@ export type Domain = (typeof domains)[number];
 export type Option = {
   id: string;
   text: string;
+  kind?: "trap";
+  feedback?: string;
 };
 
 export type GlossaryEntry = {

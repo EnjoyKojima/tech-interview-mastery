@@ -2727,14 +2727,29 @@ export const additionalQuestions: Question[] = [
     prompt: "面接官: CORS設定の誤りが招く典型的なセキュリティリスクを説明してください。",
     correct: {
       id: "correct",
-      text: "Access-Control-Allow-OriginをワイルドカードにしたままAllow-Credentialsを有効にすると、任意サイトから認証済みリクエストの結果を読み取られる",
+      text: "リクエストのOriginを検証せずAccess-Control-Allow-Originへ反映し、Allow-Credentialsも有効にすると、任意サイトから認証済みレスポンスを読み取られる",
     },
     distractors: [
-      { id: "d1", text: "CORSを設定するとサーバーの処理速度が必ず低下する" },
-      { id: "d2", text: "CORSはSQLインジェクションを直接防ぐための仕組みである" },
-      { id: "d3", text: "CORSを有効にすると全てのCookieが自動的に暗号化される" },
-      { id: "d4", text: "CORS設定はブラウザではなくサーバーの実行速度にのみ影響する" },
-      { id: "d5", text: "CORSはクライアント側のJavaScriptの実行速度を制限する仕組みである" },
+      {
+        id: "d1",
+        text: "ワイルドカード指定でもAllow-Credentialsを有効にすれば、ブラウザが安全な送信元だけを自動判定して認証済みレスポンスを渡す",
+      },
+      {
+        id: "d2",
+        text: "許可オリジンをリクエストのOriginからそのまま反映しても、Originヘッダーをブラウザが生成するため任意サイトには悪用されない",
+      },
+      {
+        id: "d3",
+        text: "CORSはクロスオリジンのリクエスト送信自体を止める仕組みなので、CSRFトークンやSameSite属性の代わりとして利用できる",
+      },
+      {
+        id: "d4",
+        text: "プリフライトに成功した通信はサーバー側でも安全性を確認済みなので、その後の認証や認可チェックを省略しても問題ない",
+      },
+      {
+        id: "d5",
+        text: "Access-Control-Allow-Originを自社ドメインに限定すれば、同じオリジン内で発生したXSSによる情報窃取も防止できる",
+      },
     ],
     brief:
       "CORSはブラウザが実装するオリジン間リクエスト制御の仕組みで、設定ミスが情報漏洩に直結します。",
