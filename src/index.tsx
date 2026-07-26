@@ -844,6 +844,11 @@ function StatusPage({ rows }: { rows: ProgressRow[] }) {
         <section class="panel flat">
           <h1 class="section-title">現在地</h1>
           <LevelList summaries={levelSummaries} />
+          <div class="footer-actions">
+            <a class="button primary" href="/play">
+              問題に進む
+            </a>
+          </div>
         </section>
       </div>
     </Shell>
