@@ -337,11 +337,11 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
           </div>
         </section>
         <section class="panel flat">
-          <h2 class="section-title">次に理解すること</h2>
+          <h2 class="section-title">これがわかると理解できること</h2>
           {focus ? (
             <div class="callout">
               <strong>{focus.prompt}</strong>
-              <p class="muted">{focus.next}</p>
+              <p class="muted">{understandingOutcome(focus.next)}</p>
               <span class="badge">{domainLabel(focus.domain)}</span>
             </div>
           ) : (
@@ -401,7 +401,7 @@ function QuestionPage({
             現レベルの問題はすべて間隔待ちのため、Level {picked.previewLevel} を先行出題しています。
           </p>
         ) : null}
-        <h1>{question.prompt}</h1>
+        <h1>{displayPrompt(question)}</h1>
         <LevelClearanceCard summary={clearance} />
         {mix && score !== null ? (
           <p class="muted">
@@ -471,11 +471,13 @@ function AnswerPage({
         <SchedulerNote answer={answer} stream={stream} />
         <div class="callout">
           <p>
-            <strong>問題:</strong> {question.prompt}
+            <strong>問題:</strong> {displayPrompt(question)}
           </p>
-          <p>
-            <strong>あなたの回答:</strong> {selectedText}
-          </p>
+          {!correct ? (
+            <p>
+              <strong>あなたの回答:</strong> {selectedText}
+            </p>
+          ) : null}
           <p>
             <strong>正解:</strong> {correctAnswerText(question)}
           </p>
@@ -530,27 +532,17 @@ function AnswerPage({
 function AnswerExplanation({ nextHref, question }: { nextHref: string; question: Question }) {
   return (
     <div class="detail-list" style="margin-top: 16px;">
-      <div class="callout understanding">
-        <strong>初読でつかむ順番</strong>
-        <ol class="understanding-steps">
-          <li>
-            <b>何を聞かれているか</b>
-            <span>{learningLens(question)}</span>
-          </li>
-          <li>
-            <b>正解の芯</b>
-            <span>{question.brief}</span>
-          </li>
-          <li>
-            <b>次に問われたら</b>
-            <span>{recallCue(question)}</span>
-          </li>
-        </ol>
-      </div>
-      {question.misconception ? (
-        <div class="callout warn">
-          <strong>ここを混同しやすい</strong>
-          <p>{question.misconception}</p>
+      {question.glossary && question.glossary.length > 0 ? (
+        <div class="callout">
+          <strong>用語解説</strong>
+          <dl class="glossary">
+            {question.glossary.map((entry) => (
+              <>
+                <dt>{entry.term}</dt>
+                <dd>{entry.description}</dd>
+              </>
+            ))}
+          </dl>
         </div>
       ) : null}
       {question.flow ? <FlowSteps steps={question.flow} /> : null}
@@ -567,7 +559,7 @@ function AnswerExplanation({ nextHref, question }: { nextHref: string; question:
         </div>
       ) : null}
       <details class="more-detail">
-        <summary>さらに深く（面接での答え方・実務との関係・用語解説）</summary>
+        <summary>さらに深く（面接での答え方・実務との関係）</summary>
         <div class="detail-list" style="margin-top: 12px;">
           <div class="callout">
             <strong>面接での答え方</strong>
@@ -577,26 +569,13 @@ function AnswerExplanation({ nextHref, question }: { nextHref: string; question:
             <strong>Webエンジニア実務との関係</strong>
             <p>{question.relevance}</p>
           </div>
-          {question.glossary && question.glossary.length > 0 ? (
-            <div class="callout">
-              <strong>用語解説</strong>
-              <dl class="glossary">
-                {question.glossary.map((entry) => (
-                  <>
-                    <dt>{entry.term}</dt>
-                    <dd>{entry.description}</dd>
-                  </>
-                ))}
-              </dl>
-            </div>
-          ) : null}
           {question.diagram ? <pre>{question.diagram}</pre> : null}
           {question.deeper.map((line) => (
             <div class="callout">{line}</div>
           ))}
           <div class="callout">
-            <strong>次に理解すること</strong>
-            <p>{question.next}</p>
+            <strong>これがわかると理解できること</strong>
+            <p>{understandingOutcome(question.next)}</p>
           </div>
         </div>
       </details>
@@ -681,7 +660,7 @@ function GapsPage({ gaps }: { gaps: GapEntry[] }) {
                     </span>
                   ) : null}
                   <p>
-                    <strong>問題:</strong> {question ? question.prompt : gap.questionId}
+                    <strong>問題:</strong> {question ? displayPrompt(question) : gap.questionId}
                   </p>
                   {gap.note ? (
                     <p>
@@ -826,7 +805,7 @@ function CheckpointPage({
                     Level {question.level} / {domainLabel(question.domain)}
                   </span>
                   <p>
-                    <strong>問題:</strong> {question.prompt}
+                    <strong>問題:</strong> {displayPrompt(question)}
                   </p>
                   <p>
                     <strong>あなたの回答:</strong> {optionText(question, mistake.selectedOptionId)}
@@ -1109,15 +1088,18 @@ function correctAnswerText(question: Question): string {
     .join(" / ");
 }
 
-function learningLens(question: Question): string {
-  const lenses: Record<Domain, string> = {
-    computer: "OS、CPU、メモリ、DBなどのどこで何が起きるかを切り分けます。",
-    design: "責務、変更理由、契約、トレードオフのどれを問われているかを見ます。",
-    network: "クライアント、ブラウザ、DNS、サーバ、プロキシの誰が何を送るかを追います。",
-    security: "守る資産、攻撃者ができること、ブラウザやサーバの自動挙動を分けます。",
-  };
+function displayPrompt(question: Question): string {
+  return question.prompt.replace(/^面接官:\s*/, "");
+}
 
-  return `${lenses[question.domain]}今回のタグは ${question.tags.join(", ")} です。`;
+function understandingOutcome(next: string): string {
+  const relatedTopic = next
+    .replace(/^(次は|次に)\s*/, "")
+    .replace(/。$/, "")
+    .replace(/(を|まで)(見ていき|見|理解し|押さえ|区別し|まとめて覚え|繋げ|追い)ましょう$/, "")
+    .replace(/に進みましょう$/, "");
+
+  return `この内容を土台にすると、「${relatedTopic}」も関連づけて理解できるようになります。`;
 }
 
 function recallCue(question: Question): string {
