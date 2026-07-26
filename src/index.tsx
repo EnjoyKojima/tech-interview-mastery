@@ -837,8 +837,6 @@ function CheckpointPage({
 
 function StatusPage({ rows }: { rows: ProgressRow[] }) {
   const levelSummaries = buildLevelSummaries(questions, rows);
-  const domainSummaries = buildDomainSummaries(questions, rows);
-  const focus = nextFocus(questions, rows);
 
   return (
     <Shell title="現在地">
@@ -846,24 +844,6 @@ function StatusPage({ rows }: { rows: ProgressRow[] }) {
         <section class="panel flat">
           <h1 class="section-title">現在地</h1>
           <LevelList summaries={levelSummaries} />
-        </section>
-        <section class="panel flat">
-          <h2 class="section-title">苦手分野</h2>
-          <DomainList summaries={domainSummaries} />
-          {focus ? (
-            <div class="callout" style="margin-top: 16px;">
-              <strong>次の焦点</strong>
-              <p>{focus.next}</p>
-            </div>
-          ) : null}
-          <div class="footer-actions">
-            <a class="button primary" href="/play">
-              解く
-            </a>
-            <a class="button" href="/reset">
-              リセット
-            </a>
-          </div>
         </section>
       </div>
     </Shell>
