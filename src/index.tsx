@@ -283,7 +283,6 @@ function Shell({ title, children }: { title: string; children: Child }) {
 function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number }) {
   const activeLevel = currentLevel(questions, rows);
   const levelSummaries = buildLevelSummaries(questions, rows);
-  const domainSummaries = buildDomainSummaries(questions, rows);
   const focus = nextFocus(questions, rows);
   const totalPoints = totalMasteryPoints(questions, rows);
   const requiredPoints = questions.length * masteryTarget;
@@ -352,14 +351,10 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
           )}
         </section>
       </div>
-      <div class="grid dashboard" style="margin-top: 16px;">
+      <div class="grid" style="margin-top: 16px;">
         <section class="panel flat">
           <h2 class="section-title">Level gates</h2>
           <LevelList summaries={levelSummaries} />
-        </section>
-        <section class="panel flat">
-          <h2 class="section-title">Weakness map</h2>
-          <DomainList summaries={domainSummaries} />
         </section>
       </div>
     </Shell>
