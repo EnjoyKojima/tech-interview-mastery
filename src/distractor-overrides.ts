@@ -1,6 +1,64 @@
 import type { Question } from "./types";
 
 type DistractorTexts = readonly [string, string, string, string, string];
+type CorrectTexts = Readonly<{ primary: string; alternate: string }>;
+
+const level7CorrectTexts: Partial<Record<string, CorrectTexts>> = {
+  "l7-computer-lock-free": {
+    primary:
+      "期待値との一致を確認した場合だけ一つの値をatomicに更新し、競合を検出しながらlockなしの状態遷移を組み立てる",
+    alternate:
+      "compareとswapを不可分に行い、他threadが値を変えていなかったときだけ更新を成立させるread-modify-write命令",
+  },
+  "l7-computer-numa": {
+    primary:
+      "CPUからlocal memoryとremote memoryへの距離でlatencyや帯域が変わるため、threadと利用pageの配置を揃える",
+    alternate:
+      "socketをまたぐmemory accessのcostを考慮し、CPU affinityとmemory allocationの局所性を合わせる",
+  },
+  "l7-computer-branch-prediction": {
+    primary:
+      "誤った経路で投機実行した後続命令を破棄し、正しい分岐先からpipelineを再充填するpenaltyが生じる",
+    alternate:
+      "prediction missではwrong-pathの処理をflushしてfetchをやり直すため、pipelineが深いほどcostが大きくなり得る",
+  },
+  "l7-design-idempotency-key": {
+    primary:
+      "再送を同じ論理操作として識別し、最初の処理結果を再利用して決済などの副作用を重複実行しないため",
+    alternate:
+      "timeout後のretryでも同じkeyとrequestを照合し、すでに完了または進行中の処理を二重に開始しないため",
+  },
+  "l7-design-sharding-strategy": {
+    primary:
+      "range分割は近いkeyを同じshardへ置いて範囲検索を局所化し、hash分割はkeyを散らして負荷を均しやすい",
+    alternate:
+      "rangeはkey空間の境界で配置を決め、hashはhash値で配置を決めるため、局所性と分散均等性の特性が異なる",
+  },
+  "l7-network-gossip-protocol": {
+    primary:
+      "各nodeが選んだ少数のpeerと情報を反復交換し、中央coordinatorなしで確率的にcluster全体へ伝播させる",
+    alternate:
+      "randomなpeer間のpush/pullを繰り返し、即時到達ではなくeventualな収束としてmembershipなどを共有する",
+  },
+  "l7-network-cdn-origin-shield": {
+    primary:
+      "複数edgeのcache missを上位cacheへ集約し、同じobjectについてoriginへ到達するrequestと転送量を減らす",
+    alternate:
+      "edgeとoriginの間に共有cache層を置き、分散したedge missを高いcache hit率とrequest集約へ変える",
+  },
+  "l7-security-mtls": {
+    primary:
+      "server認証に加えてclient証明書も検証し、通信を開始したworkloadのidentityを相互に確認できる",
+    alternate:
+      "TLS handshakeで双方が証明書を提示・検証し、service間通信で接続先だけでなく接続元も認証する",
+  },
+  "l7-security-sandbox-escape": {
+    primary:
+      "隔離境界の実装上の欠陥を悪用し、sandbox内のcodeからhostや他tenantなど境界外のresourceへ到達する攻撃",
+    alternate:
+      "container・browser・VMなどの制限を破り、本来許可されないhost syscallやmemory、credentialへアクセスする脅威",
+  },
+};
 
 const sharperDistractors: Record<string, DistractorTexts> = {
   "l1-computer-binary": [
@@ -353,21 +411,171 @@ const sharperDistractors: Record<string, DistractorTexts> = {
     "ユーザー影響が小さい場合は、監査ログやタイムラインを残さず通常のバグ修正として扱う",
     "報告では技術的な正確性より安心感を優先し、推測も含めて断定的に説明する",
   ],
+  "l7-computer-linearizability": [
+    "全操作に単一の順序が存在すれば、実際の完了順と開始順が逆転していてもlinearizableとみなせる",
+    "並行トランザクションの結果が何らかの直列実行と等価なら、個々の操作の実時間順序も保証される",
+    "因果関係のある操作だけ同じ順序で観測できれば、無関係な操作の観測順が異なっても条件を満たす",
+    "各クライアントが自分の書き込みを直後に読めれば、他クライアントが古い値を読んでも条件を満たす",
+    "読み書きを過半数のレプリカへ送れば、レプリカ構成や障害時の処理によらず自動的に保証される",
+  ],
+  "l7-computer-serializability": [
+    "各トランザクションが同じスナップショットを読めれば、write skewが起きても直列実行と等価になる",
+    "コミット順が実時間の完了順と一致することまで要求するため、strict serializabilityとの差はない",
+    "トランザクションを物理的に一つずつ実行する方式だけを指し、並行実行で達成することはできない",
+    "コミット済みデータが障害後も残ることを保証する性質で、分離レベルや実行順序とは独立している",
+    "同じ行への競合書き込みだけを直列化すれば、範囲条件を使う読み書きも常に条件を満たす",
+  ],
+  "l7-network-raft": [
+    "leaderがログを受理した時点でcommitし、過半数への複製は障害復旧時に非同期で行う合意方式",
+    "各ノードが書き込みを受理し、競合時は物理タイムスタンプが最大の値を残すことで合意する方式",
+    "各termでは応答遅延が最小のノードをleaderに選び、過半数の投票なしで選出を確定する方式",
+    "過半数へ複製済みでもleader交代時には自由に上書きでき、最新leaderのローカルログを正とする方式",
+    "leaderからの読み取りは任期確認なしでも常に最新なので、分断後の古いleaderも安全に応答できる",
+  ],
+  "l7-network-vector-clock": [
+    "各イベントへ単一の連番を付け、番号の大小だけで因果関係と並行関係の両方を完全に判定する時計",
+    "NTPで同期した物理時刻をノードごとに保持し、タイムスタンプが同じ更新を並行と判定する時計",
+    "競合更新では最も大きい成分を持つ値を常に採用し、もう一方を自動的に破棄する解決方式",
+    "二つのベクトルは必ず大小比較できるため、全イベントへ因果関係を保つ全順序を与える論理時計",
+    "クラスタ参加数が変わっても固定長の一要素だけを保持し、ノード識別なしで因果関係を表す時計",
+  ],
+  "l7-security-capability": [
+    "主体IDに紐づく権限表を認可サーバで毎回検索し、権限を表す参照自体は主体へ渡さない方式",
+    "署名されたbearer tokenには主体IDだけを入れ、対象資源への権限は別のglobal ACLで判定する方式",
+    "権限をグローバルなロール名へ集約し、委譲先にも元の主体と同じロール一式を付与する方式",
+    "capabilityが推測困難なら漏洩後も安全なので、期限・失効・再委譲の制約を持たせない方式",
+    "capabilityの所持だけを記録し、誰から誰へ委譲されたかや実際の利用主体は監査しない方式",
+  ],
+  "l7-security-confused-deputy": [
+    "攻撃者がサービス用の秘密鍵を盗み、その資格情報を使って保護APIを直接呼び出す認証情報漏洩",
+    "呼び出し元が対象操作だけの委譲capabilityを渡し、サービスがその範囲内で処理する権限委譲",
+    "ネットワークACLの設定ミスにより、保護されるべき管理APIへ攻撃者が直接接続できる公開設定",
+    "共有オブジェクトを更新中に別スレッドが状態を変え、検査時と使用時の条件がずれる競合問題",
+    "APIが対象リソースの所有者確認を行わず、利用者自身の権限で他テナントのデータを返すBOLA",
+  ],
+  "l7-design-saga": [
+    "単一coordinatorが全参加サービスのprepare後に一斉commitし、途中失敗なら全変更を原子的に破棄する",
+    "各サービスのイベント発行だけをoutboxへ保存すれば、後続処理の失敗時も補償なしで全体が元に戻る",
+    "一時障害と業務エラーを区別せず成功するまで再試行し、完了済み処理は取り消さない設計",
+    "途中のローカルトランザクションが失敗すると、先にcommitした別サービスの変更も自動rollbackされる",
+    "補償処理は常に過去の状態をビット単位で復元する逆操作であり、返金など意味的な取消は含まない",
+  ],
+  "l7-design-crdt": [
+    "全更新を中央サーバの同じ順序へ変換してから適用し、その順序に従えないオフライン更新は拒否する型",
+    "任意のオブジェクトへ更新時刻を付け、常に最新時刻の状態を残せば更新損失なく収束できるデータ型",
+    "通常の可変データを各レプリカで更新し、到着順に差分を再生するだけで自動的に収束するデータ型",
+    "state-based CRDTではmergeが可換でさえあればよく、結合則や冪等性を満たさなくても収束する",
+    "レプリカの収束と同時に、残高が負にならないなど任意の業務不変条件まで自動的に保証する仕組み",
+  ],
+  "l7-design-queue-semantics": [
+    "brokerがexactly-once配送を宣言すれば、DB更新や外部APIを含む受け手の副作用にも重複対策は不要になる",
+    "業務処理をcommitする前にackを返し、失敗時は同じメッセージが再配送されないようにすること",
+    "メッセージの生成時刻だけで重複を判定し、同時刻のイベントは同じ処理として一件だけ残すこと",
+    "検証エラーなど恒久的な失敗もackせず無制限に再配送し、成功するまでキューへ戻し続けること",
+    "処理済みIDをDBへ保存すれば、DB外の通知送信との間に障害が起きても二重送信を防げること",
+  ],
+  "l7-security-zero-trust": [
+    "サービス間をmTLSにすれば通信主体は判別できるため、操作ごとの認可や端末状態の評価を省略する",
+    "社内IPかつ管理端末からのアクセスは一度だけ検証し、そのセッション中は権限変更を反映しない",
+    "継続的検証とは全リクエストで利用者へ対話的な再ログインを要求し、セッションを保持しないこと",
+    "ネットワークを細かく分割して到達経路を制限すれば、アプリケーション層の最小権限は不要になる",
+    "職種ごとに広い固定ロールを付け、未使用権限も将来必要になる前提で継続して許可する考え方",
+  ],
+  "l7-network-backend-timeout-budget": [
+    "直列に呼ぶ各下流へクライアントの期限と同じtimeoutを設定し、どの処理にも成功機会を等しく与える",
+    "並列呼び出しでは各下流timeoutの合計だけを全体期限に収めれば、応答集約の時間は考慮しなくてよい",
+    "最初の試行と再試行へ同じtimeoutを割り当て、再試行開始時の残り時間にかかわらず最後まで待つ",
+    "通常時のp99をそのまま各timeoutに設定すれば、待ち行列や障害時の遅延を含む設計として十分である",
+    "上流から下流へ進むほど長いtimeoutを設定し、下流が完了するまで上流の期限切れ後も処理を続ける",
+  ],
+  "l7-computer-lock-free": [
+    "競合時にCASを再試行すれば、全スレッドが有限回で成功する公平性とstarvation freedomも保証される",
+    "一回のCASで関連する複数メモリ位置をまとめて比較・更新し、複合状態を常に原子的に変更できる",
+    "期待値が一致しない場合はOSがスレッドを待機させ、値を変更したスレッドの解放通知を待つ命令",
+    "CASは全アーキテクチャで常にfull memory fenceとして働くため、追加のメモリ順序指定は不要である",
+    "値がAからBを経てAへ戻るABA問題もCASが履歴を検出するため、version付与などの対策は不要である",
+  ],
+  "l7-computer-numa": [
+    "first-touchで一度配置すれば、その後スレッドを別ノードへ移してもメモリは自動で常に最寄りへ追従する",
+    "全ページを全NUMAノードへ均等interleaveすれば、局所性の高い処理でも常に最低latencyを得られる",
+    "スレッドを特定CPUへpinすれば十分で、割り当て済みページのノードやI/O配置は性能へ影響しない",
+    "remote memoryは帯域幅だけが低下しlatencyはlocal memoryと同じなので、小さいランダムアクセスは無関係である",
+    "共有heapを使うGCではオブジェクト配置をruntimeが管理するため、NUMAを意識したheap設計は不要である",
+  ],
+  "l7-computer-branch-prediction": [
+    "予測ミスは分岐命令の完了だけを遅らせ、後続の投機実行済み命令はそのままcommitできる",
+    "誤った経路の命令が更新したレジスタとメモリはarchitectural stateへ残り、OSが後から巻き戻す",
+    "条件が実行時データに依存していても、最適化compilerが全分岐を事前解決するためpenaltyは発生しない",
+    "予測ミスのcostはpipelineの深さや実行幅に関係なく、どのCPUでも常に一cycleに固定されている",
+    "条件分岐をbranchless表現へ置き換えれば追加命令や依存関係にかかわらず、すべてのCPUで必ず高速になる",
+  ],
+  "l7-design-idempotency-key": [
+    "キーが一意ならrequest内容を紐づけなくても、同じキーを別の決済内容へ再利用して安全に実行できる",
+    "決済処理の完了後にだけキーを保存すれば、処理完了と保存の間で障害が起きても二重決済を防げる",
+    "同じキーへ同じHTTP responseを返すことが目的で、決済などbackendの副作用が重複しても問題ない",
+    "サーバがrequest受信後に新しいキーを毎回発行すれば、clientが同じ操作を再送した場合も照合できる",
+    "キーのTTLはclientの再試行可能期間より短くても、期限切れ後の再送を新規処理して二重実行にならない",
+  ],
+  "l7-design-sharding-strategy": [
+    "単調増加キーのrange分割は新規書き込みを既存rangeへ均等配分するため、hotspotが起きにくい",
+    "hash分割でも元キーの大小関係が配置順に保たれるため、連続range検索は単一shardで完結しやすい",
+    "shard数を単純なhash値の剰余で増やしても既存データの配置は変わらず、再配置なしで拡張できる",
+    "rangeかhashかを選べばreplication方式とconsistency levelも自動的に決まり、別途設計する必要はない",
+    "主キーをhash分割すればsecondary indexも必ず同じshardへ収まり、scatter-gatherは発生しない",
+  ],
+  "l7-network-gossip-protocol": [
+    "各roundで一定数のpeerへ送れば、指定時間内に全生存nodeへ必ず届く決定的broadcastとして扱える",
+    "情報欠落を防ぐには各nodeが毎回全peerへ同時送信する必要があり、randomなfan-outは利用できない",
+    "heartbeatをgossipすれば障害nodeを誤検知なく即座に判定でき、network遅延との区別も常に可能になる",
+    "全nodeが最終的に同じ情報を持つ性質により、更新の合意順序とlinearizable readも同時に保証される",
+    "peer選択はrandomでも通信は全node間の常時TCP接続が前提で、接続を都度作る実装は成立しない",
+  ],
+  "l7-network-cdn-origin-shield": [
+    "全requestを必ずshield経由にすれば、edge cache hitでも経路が増えることなく常にlatencyを短縮できる",
+    "shieldでcache hitしたresponseは利用者に最も近いedge hitと同じ距離なので、応答時間の差は生じない",
+    "cache missを一拠点へ集約するだけで同一objectの同時requestも自動直列化され、request coalescingは不要になる",
+    "shieldを単一regionへ固定するとその障害時も全edgeが自動でoriginへ到達するため、可用性設計は不要になる",
+    "shieldはoriginのCache-Controlを無視して長期保存する層なので、private responseも安全に共有cacheできる",
+  ],
+  "l7-security-mtls": [
+    "証明書でworkloadを認証できれば、その処理が利用者の意図した操作かというauthorizationも自動的に満たす",
+    "proxyがclient証明書を検証した後は、外部から同名headerを注入できる構成でも転送された主体情報を信頼できる",
+    "短命なclient証明書を使えば漏洩時の失効や緊急rotationは不要で、期限までの不正利用も防止できる",
+    "private CAが署名した証明書ならSANや想定trust domainを検証せず、署名が正しい全clientを許可できる",
+    "相互認証により通信のreplayや権限を持つserviceの誤代理も防げるため、application側の防御は不要になる",
+  ],
+  "l7-security-sandbox-escape": [
+    "rootless containerで実行すれば共有kernelの脆弱性があっても、host側へ到達するescapeは成立しない",
+    "seccompのdeny listで既知syscallを止めれば、filesystem mountやcapabilityなど他の境界は検討不要になる",
+    "hardware VMへ隔離すればguestからhypervisorを攻撃する経路は消え、追加のpatch適用は不要になる",
+    "filesystemをread-onlyにすればkernel syscallの脆弱性は悪用できず、processやnetworkへの脱出も防げる",
+    "言語runtimeのsandbox内ならnative moduleやJITがpolicy外のmemoryへ触れても、隔離境界は維持される",
+  ],
 };
 
-export function withSharperDistractors(questions: readonly Question[]): Question[] {
+export function withSharperOptions(questions: readonly Question[]): Question[] {
   return questions.map((question) => {
     const overrides = sharperDistractors[question.id];
+    const correctTexts = level7CorrectTexts[question.id];
 
-    if (!overrides) {
+    if (!overrides && !correctTexts) {
       return question;
     }
 
     return {
       ...question,
+      correct: correctTexts
+        ? {
+            ...question.correct,
+            text: correctTexts.primary,
+          }
+        : question.correct,
+      corrects: correctTexts
+        ? [{ id: "correct-alt-1", text: correctTexts.alternate }]
+        : question.corrects,
       distractors: question.distractors.map((distractor, index) => ({
         ...distractor,
-        text: overrides[index] ?? distractor.text,
+        text: overrides?.[index] ?? distractor.text,
       })),
     };
   });
