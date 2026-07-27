@@ -499,6 +499,13 @@ function AnswerPage({
             <span>misses</span>
           </div>
         </div>
+        {correct ? (
+          <div class="footer-actions">
+            <a class="button primary" style="flex: 1;" href={nextHref}>
+              {checkpointDue ? "10問の振り返りへ" : "次の問題へ進む"}
+            </a>
+          </div>
+        ) : null}
         <AnswerExplanation nextHref={nextHref} question={question} />
         {!correct && answer.eventId !== null ? (
           <form method="post" action="/reclassify" class="reclassify">
