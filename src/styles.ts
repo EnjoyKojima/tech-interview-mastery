@@ -58,7 +58,8 @@ button {
   cursor: pointer;
 }
 
-.button.primary {
+.button.primary,
+button.primary {
   border-color: var(--blue);
   background: var(--blue);
   color: #ffffff;
@@ -155,7 +156,10 @@ button.danger {
 .level-list,
 .domain-list,
 .option-list,
-.detail-list {
+.detail-list,
+.challenge-level-list,
+.challenge-question-list,
+.challenge-result-list {
   display: grid;
   gap: 10px;
   margin: 0;
@@ -167,7 +171,10 @@ button.danger {
 .domain-item,
 .option-item,
 .callout,
-.diagram-card {
+.diagram-card,
+.challenge-level-card,
+.challenge-question-card,
+.challenge-result-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
@@ -184,6 +191,7 @@ button.danger {
 
 .badge {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   min-height: 24px;
   border-radius: 999px;
@@ -192,6 +200,7 @@ button.danger {
   color: #174ea6;
   font-size: 12px;
   font-weight: 750;
+  white-space: nowrap;
 }
 
 .badge.green {
@@ -336,6 +345,76 @@ button.danger {
 .option-button:hover,
 .option-button:focus-visible {
   background: #eef6ff;
+}
+
+.challenge-level-list,
+.challenge-question-list,
+.challenge-result-list {
+  margin-top: 18px;
+}
+
+.challenge-level-card .muted {
+  margin: 4px 0 0;
+}
+
+.challenge-question-card {
+  padding: 0;
+}
+
+.challenge-question-card fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 16px;
+}
+
+.challenge-question-card legend {
+  width: 100%;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.challenge-options {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.challenge-options label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  cursor: pointer;
+}
+
+.challenge-options label:hover,
+.challenge-options label:focus-within {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.challenge-options input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--blue);
+}
+
+.challenge-result-card.is-correct {
+  border-color: #bbf7d0;
+}
+
+.challenge-result-card.is-wrong {
+  border-color: #fecaca;
+}
+
+.challenge-result-card p:last-child {
+  margin-bottom: 0;
 }
 
 .result.correct {

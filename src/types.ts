@@ -10,6 +10,22 @@ export type Option = {
   text: string;
 };
 
+export type MasteryChallengeQuestion = {
+  id: string;
+  level: Level;
+  prompt: string;
+  options: Option[];
+  correctOptionId: string;
+  explanation: string;
+};
+
+export type MasteryChallengeSummary = {
+  level: Level;
+  attempts: number;
+  bestScore: number;
+  passed: boolean;
+};
+
 export type GlossaryEntry = {
   term: string;
   description: string;
