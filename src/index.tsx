@@ -246,6 +246,20 @@ app.get("/diagrams/:id.svg", (context) => {
   });
 });
 
+app.get("/explanations/:level/:filename", (context) => {
+  const levelParam = context.req.param("level");
+  const level = levelParam === "level6" ? 6 : levelParam === "level7" ? 7 : null;
+  const filename = context.req.param("filename");
+  const questionId = filename.endsWith(".webp") ? filename.slice(0, -".webp".length) : "";
+  const question = questions.find((candidate) => candidate.id === questionId);
+
+  if (level === null || question?.level !== level) {
+    return context.notFound();
+  }
+
+  return context.env.ASSETS.fetch(context.req.raw);
+});
+
 app.get("/reset", (context) => {
   return context.html(<ResetPage />);
 });
@@ -534,6 +548,7 @@ function AnswerPage({
 function AnswerExplanation({ nextHref, question }: { nextHref: string; question: Question }) {
   return (
     <div class="detail-list" style="margin-top: 16px;">
+      {hasExplanationImage(question) ? <ExplanationImage question={question} /> : null}
       {question.glossary && question.glossary.length > 0 ? (
         <div class="callout">
           <strong>用語解説</strong>
@@ -583,6 +598,26 @@ function AnswerExplanation({ nextHref, question }: { nextHref: string; question:
       </details>
       <ClarityForm questionId={question.id} nextHref={nextHref} />
     </div>
+  );
+}
+
+function hasExplanationImage(question: Question): boolean {
+  return question.level === 6 || question.level === 7;
+}
+
+function ExplanationImage({ question }: { question: Question }) {
+  return (
+    <figure class="explanation-visual">
+      <img
+        src={`/explanations/level${question.level}/${question.id}.webp`}
+        alt={`${question.prompt}の内容を縦長の図で説明した画像`}
+        width="864"
+        height="1821"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption>図でつかむ — 上から順に流れを追ってください</figcaption>
+    </figure>
   );
 }
 

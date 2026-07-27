@@ -280,6 +280,27 @@ button.danger {
   line-height: 1.18;
 }
 
+.explanation-visual {
+  margin: 16px 0 0;
+}
+
+.explanation-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffdf8;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.explanation-visual figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .option-item label {
   display: flex;
   gap: 12px;
