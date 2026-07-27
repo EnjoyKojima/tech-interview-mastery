@@ -517,6 +517,26 @@ pre {
   color: var(--muted);
 }
 
+.glossary .glossary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.glossary-meta span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+}
+
+.glossary-meta b {
+  color: var(--blue);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 800px) {
   .dashboard,
   .stat-row {

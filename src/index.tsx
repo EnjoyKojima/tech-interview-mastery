@@ -556,6 +556,20 @@ function AnswerExplanation({ nextHref, question }: { nextHref: string; question:
             {question.glossary.map((entry) => (
               <>
                 <dt>{entry.term}</dt>
+                {entry.reading || entry.fullForm ? (
+                  <dd class="glossary-meta">
+                    {entry.reading ? (
+                      <span>
+                        <b>読み</b> {entry.reading}
+                      </span>
+                    ) : null}
+                    {entry.fullForm ? (
+                      <span>
+                        <b>正式名称・展開</b> {entry.fullForm}
+                      </span>
+                    ) : null}
+                  </dd>
+                ) : null}
                 <dd>{entry.description}</dd>
               </>
             ))}
