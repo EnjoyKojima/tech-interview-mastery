@@ -278,6 +278,57 @@ button.danger {
   background: var(--teal);
 }
 
+.mastery-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mastery-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mastery-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.mastery-segments {
+  display: grid;
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.mastery-segment {
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+
+.mastery-3 {
+  background: #7c3aed;
+}
+
+.mastery-2 {
+  background: #38bdf8;
+}
+
+.mastery-1 {
+  background: #84cc16;
+}
+
+.mastery-0 {
+  background: #cbd5e1;
+}
+
 .question {
   max-width: 860px;
   margin: 0 auto;
@@ -624,6 +675,15 @@ pre {
 
   .understanding-steps li {
     grid-template-columns: 1fr;
+  }
+
+  .mastery-segments {
+    gap: 2px;
+  }
+
+  .mastery-segment {
+    height: 12px;
+    border-radius: 3px;
   }
 }
 `;
