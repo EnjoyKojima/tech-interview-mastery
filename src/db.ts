@@ -1,4 +1,5 @@
 import { nextStreakState } from "./streak";
+import { masteryChallengePassScore } from "./mastery-challenges";
 import { isCorrectOption } from "./random";
 import {
   canCountCorrect,
@@ -12,11 +13,82 @@ import {
   type Domain,
   type ErrorKind,
   type Level,
+  type MasteryChallengeSummary,
   type ProgressRow,
   type Question,
   type RemediationEntry,
   type StreakState,
 } from "./types";
+
+type MasteryChallengeSummaryRecord = {
+  level: number;
+  attempts: number;
+  best_score: number;
+  passed: number;
+};
+
+export type MasteryChallengeAnswerInput = {
+  questionId: string;
+  selectedOptionId: string;
+  correct: boolean;
+};
+
+export async function loadMasteryChallengeSummaries(
+  db: D1Database,
+): Promise<MasteryChallengeSummary[]> {
+  const result = await db
+    .prepare(
+      `SELECT level, COUNT(*) AS attempts, MAX(score) AS best_score, MAX(passed) AS passed
+       FROM mastery_challenge_attempts
+       GROUP BY level
+       ORDER BY level`,
+    )
+    .all<MasteryChallengeSummaryRecord>();
+
+  return (result.results ?? []).map((record) => ({
+    level: record.level as Level,
+    attempts: record.attempts,
+    bestScore: record.best_score,
+    passed: record.passed === 1,
+  }));
+}
+
+export async function recordMasteryChallengeAttempt(
+  db: D1Database,
+  level: Level,
+  answers: readonly MasteryChallengeAnswerInput[],
+): Promise<MasteryChallengeSummary> {
+  const score = answers.filter((answer) => answer.correct).length;
+  const passed = score >= masteryChallengePassScore;
+  const attemptId = crypto.randomUUID();
+
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO mastery_challenge_attempts (id, level, score, total, passed)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(attemptId, level, score, answers.length, passed ? 1 : 0),
+    ...answers.map((answer) =>
+      db
+        .prepare(
+          `INSERT INTO mastery_challenge_answer_events
+             (attempt_id, question_id, selected_option_id, correct)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .bind(attemptId, answer.questionId, answer.selectedOptionId, answer.correct ? 1 : 0),
+    ),
+  ]);
+
+  const summaries = await loadMasteryChallengeSummaries(db);
+  const summary = summaries.find((candidate) => candidate.level === level);
+
+  if (!summary) {
+    throw new Error(`Failed to load mastery challenge summary for Level ${level}`);
+  }
+
+  return summary;
+}
 
 type ProgressRecord = {
   question_id: string;
@@ -483,6 +555,8 @@ export async function resolveGap(db: D1Database, id: number): Promise<void> {
 
 export async function resetProgress(db: D1Database): Promise<void> {
   await db.batch([
+    db.prepare("DELETE FROM mastery_challenge_answer_events"),
+    db.prepare("DELETE FROM mastery_challenge_attempts"),
     db.prepare("DELETE FROM answer_events"),
     db.prepare("DELETE FROM question_progress"),
     db.prepare("DELETE FROM remediation_queue"),

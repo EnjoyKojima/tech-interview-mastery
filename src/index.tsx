@@ -4,12 +4,14 @@ import { verifyBasicAuth, unauthorizedResponse } from "./auth";
 import {
   countOpenGaps,
   loadDueRemediation,
+  loadMasteryChallengeSummaries,
   loadOpenGaps,
   loadProgress,
   loadRecentAnswerEvents,
   loadStreakState,
   recordAnswer,
   recordClarityFeedback,
+  recordMasteryChallengeAttempt,
   resetCurrentStreak,
   resetProgress,
   resolveGap,
@@ -18,7 +20,15 @@ import {
   type GapEntry,
   type RecentAnswerEvent,
 } from "./db";
-import { buildChoices, correctOptions, cryptoRandomInt } from "./random";
+import {
+  challengeQuestionsForLevel,
+  isCorrectChallengeOption,
+  masteryChallengePassScore,
+  masteryChallengeQuestions,
+  masteryChallengeSize,
+  pickMasteryChallenge,
+} from "./mastery-challenges";
+import { buildChoices, correctOptions, cryptoRandomInt, shuffle } from "./random";
 import { questions } from "./questions";
 import { formWindowSize, parseSqlDate, retentionDueQuestions } from "./scheduler";
 import { styles } from "./styles";
@@ -28,6 +38,7 @@ import {
   buildLevelSummaries,
   countableQuestions,
   currentLevel,
+  isLevelMastered,
   nextFocus,
   pickAdaptiveQuestion,
   pickNextQuestion,
@@ -39,11 +50,15 @@ import {
 } from "./progress";
 import {
   masteryTarget,
+  levels,
   type Domain,
   type DomainSummary,
   type ErrorKind,
   type LevelClearanceSummary,
   type LevelSummary,
+  type Level,
+  type MasteryChallengeQuestion,
+  type MasteryChallengeSummary,
   type ProgressRow,
   type Question,
   type StreakState,
@@ -132,6 +147,92 @@ app.get("/review", async (context) => {
       rows={rows}
       streak={streak}
     />,
+  );
+});
+
+app.get("/challenges", async (context) => {
+  const rows = await loadProgress(context.env.DB);
+  const summaries = await loadMasteryChallengeSummaries(context.env.DB);
+  return context.html(<MasteryChallengesPage rows={rows} summaries={summaries} />);
+});
+
+app.get("/challenges/:level", async (context) => {
+  const level = parseLevel(context.req.param("level"));
+
+  if (level === null) {
+    return context.notFound();
+  }
+
+  const rows = await loadProgress(context.env.DB);
+
+  if (!isLevelMastered(level, questions, rows)) {
+    return context.html(<MasteryChallengeLockedPage level={level} />, 403);
+  }
+
+  return context.html(
+    <MasteryChallengePage level={level} questions={pickMasteryChallenge(level)} />,
+  );
+});
+
+app.post("/challenges/:level/submit", async (context) => {
+  const level = parseLevel(context.req.param("level"));
+
+  if (level === null) {
+    return context.notFound();
+  }
+
+  const rows = await loadProgress(context.env.DB);
+
+  if (!isLevelMastered(level, questions, rows)) {
+    return context.html(<MasteryChallengeLockedPage level={level} />, 403);
+  }
+
+  const body = await context.req.parseBody();
+  const questionIds = String(body.questionSet ?? "")
+    .split(",")
+    .filter(Boolean);
+  const uniqueIds = new Set(questionIds);
+  const levelQuestionIds = new Set(
+    challengeQuestionsForLevel(level).map((question) => question.id),
+  );
+
+  if (
+    questionIds.length !== masteryChallengeSize ||
+    uniqueIds.size !== masteryChallengeSize ||
+    questionIds.some((id) => !levelQuestionIds.has(id))
+  ) {
+    return context.html(<MasteryChallengeInvalidPage level={level} />, 400);
+  }
+
+  const results: MasteryChallengeResult[] = [];
+
+  for (const questionId of questionIds) {
+    const question = masteryChallengeQuestions.find((candidate) => candidate.id === questionId);
+    const selectedOptionId = String(body[`answer_${questionId}`] ?? "");
+
+    if (!question || !question.options.some((option) => option.id === selectedOptionId)) {
+      return context.html(<MasteryChallengeInvalidPage level={level} />, 400);
+    }
+
+    results.push({
+      question,
+      selectedOptionId,
+      correct: isCorrectChallengeOption(question, selectedOptionId),
+    });
+  }
+
+  const summary = await recordMasteryChallengeAttempt(
+    context.env.DB,
+    level,
+    results.map((result) => ({
+      questionId: result.question.id,
+      selectedOptionId: result.selectedOptionId,
+      correct: result.correct,
+    })),
+  );
+
+  return context.html(
+    <MasteryChallengeResultPage level={level} results={results} summary={summary} />,
   );
 });
 
@@ -321,6 +422,9 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
             <a class="button" href="/review">
               苦手を復習
             </a>
+            <a class="button" href="/challenges">
+              追加チャレンジ
+            </a>
           </div>
           <div class="stat-row">
             <div class="stat">
@@ -371,6 +475,242 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
           <LevelList summaries={levelSummaries} />
         </section>
       </div>
+    </Shell>
+  );
+}
+
+function MasteryChallengesPage({
+  rows,
+  summaries,
+}: {
+  rows: ProgressRow[];
+  summaries: MasteryChallengeSummary[];
+}) {
+  const summariesByLevel = new Map(summaries.map((summary) => [summary.level, summary]));
+
+  return (
+    <Shell title="追加チャレンジ">
+      <section class="panel flat">
+        <span class="eyebrow">Mastery challenge</span>
+        <h1 class="headline">別の状況でも説明できるか試す</h1>
+        <p class="lead">
+          各レベルの新規問題プールから5問を出題します。4問以上で合格です。通常問題の進捗や連続正解には影響しません。
+        </p>
+        <ol class="challenge-level-list">
+          {levels.map((level) => {
+            const eligible = isLevelMastered(level, questions, rows);
+            const summary = summariesByLevel.get(level);
+
+            return (
+              <li class="challenge-level-card">
+                <div class="level-head">
+                  <div>
+                    <strong>
+                      Level {level}: {levelTitle(level)}
+                    </strong>
+                    <p class="muted">
+                      {summary
+                        ? `${summary.attempts}回挑戦 · 最高 ${summary.bestScore}/${masteryChallengeSize}`
+                        : "未挑戦"}
+                    </p>
+                  </div>
+                  <span class={`badge ${summary?.passed ? "green" : eligible ? "" : "amber"}`}>
+                    {summary?.passed ? "合格" : eligible ? "挑戦可能" : "通常問題クリアで解放"}
+                  </span>
+                </div>
+                <div class="footer-actions">
+                  {eligible ? (
+                    <a class="button primary" href={`/challenges/${level}`}>
+                      {summary ? "もう一度挑戦" : "挑戦する"}
+                    </a>
+                  ) : (
+                    <span class="muted">
+                      Level {level}の全問題を3回ずつ正解すると挑戦できます。
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+        <div class="footer-actions">
+          <a class="button" href="/">
+            現在地へ戻る
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+function MasteryChallengePage({
+  level,
+  questions: challengeSet,
+}: {
+  level: Level;
+  questions: MasteryChallengeQuestion[];
+}) {
+  return (
+    <Shell title={`Level ${level} 追加チャレンジ`}>
+      <section class="question panel">
+        <span class="eyebrow">Level {level} mastery challenge</span>
+        <h1>5問中4問正解で合格</h1>
+        <p class="lead">
+          通常問題とは異なる状況で理解を確認します。すべて回答してからまとめて採点します。
+        </p>
+        <form method="post" action={`/challenges/${level}/submit`}>
+          <input
+            type="hidden"
+            name="questionSet"
+            value={challengeSet.map((question) => question.id).join(",")}
+          />
+          <ol class="challenge-question-list">
+            {challengeSet.map((question, index) => (
+              <li class="challenge-question-card">
+                <fieldset>
+                  <legend>
+                    <span class="badge">問 {index + 1}</span> {question.prompt}
+                  </legend>
+                  <div class="challenge-options">
+                    {shuffle(question.options, cryptoRandomInt).map((option) => (
+                      <label>
+                        <input
+                          type="radio"
+                          name={`answer_${question.id}`}
+                          value={option.id}
+                          required
+                        />
+                        <span>{option.text}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </li>
+            ))}
+          </ol>
+          <div class="footer-actions">
+            <button class="primary" type="submit">
+              5問を採点する
+            </button>
+            <a class="button" href="/challenges">
+              あとで
+            </a>
+          </div>
+        </form>
+      </section>
+    </Shell>
+  );
+}
+
+type MasteryChallengeResult = {
+  question: MasteryChallengeQuestion;
+  selectedOptionId: string;
+  correct: boolean;
+};
+
+function MasteryChallengeResultPage({
+  level,
+  results,
+  summary,
+}: {
+  level: Level;
+  results: MasteryChallengeResult[];
+  summary: MasteryChallengeSummary;
+}) {
+  const score = results.filter((result) => result.correct).length;
+  const passed = score >= masteryChallengePassScore;
+
+  return (
+    <Shell title={passed ? "追加チャレンジ合格" : "追加チャレンジ結果"}>
+      <section class={`question panel result ${passed ? "correct" : "wrong"}`}>
+        <span class={`badge ${passed ? "green" : "amber"}`}>
+          {passed ? "Level Master" : "あと一歩"}
+        </span>
+        <h1>
+          {score}/{masteryChallengeSize}問正解 — {passed ? "合格です" : "4問正解で合格です"}
+        </h1>
+        <p class="lead">
+          最高スコア {summary.bestScore}/{masteryChallengeSize} · 挑戦 {summary.attempts}
+          回。通常進捗は変更していません。
+        </p>
+        <ol class="challenge-result-list">
+          {results.map((result, index) => {
+            const selected = result.question.options.find(
+              (option) => option.id === result.selectedOptionId,
+            );
+            const correct = result.question.options.find(
+              (option) => option.id === result.question.correctOptionId,
+            );
+
+            return (
+              <li class={`challenge-result-card ${result.correct ? "is-correct" : "is-wrong"}`}>
+                <div class="level-head">
+                  <strong>
+                    問{index + 1}: {result.question.prompt}
+                  </strong>
+                  <span class={`badge ${result.correct ? "green" : "red"}`}>
+                    {result.correct ? "正解" : "不正解"}
+                  </span>
+                </div>
+                {!result.correct ? (
+                  <p>
+                    <strong>あなたの回答:</strong> {selected?.text ?? "未選択"}
+                  </p>
+                ) : null}
+                <p>
+                  <strong>正解:</strong> {correct?.text}
+                </p>
+                <p class="muted">{result.question.explanation}</p>
+              </li>
+            );
+          })}
+        </ol>
+        <div class="footer-actions">
+          <a class="button primary" href={`/challenges/${level}`}>
+            別の5問に挑戦
+          </a>
+          <a class="button" href="/challenges">
+            チャレンジ一覧へ
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+function MasteryChallengeLockedPage({ level }: { level: Level }) {
+  return (
+    <Shell title={`Level ${level} 追加チャレンジ`}>
+      <section class="question panel">
+        <span class="badge amber">Locked</span>
+        <h1>Level {level}の通常問題を先にクリアしてください。</h1>
+        <p class="lead">全問題を3回ずつ正解すると、追加チャレンジが解放されます。</p>
+        <div class="footer-actions">
+          <a class="button primary" href="/play">
+            通常問題へ
+          </a>
+          <a class="button" href="/challenges">
+            チャレンジ一覧へ
+          </a>
+        </div>
+      </section>
+    </Shell>
+  );
+}
+
+function MasteryChallengeInvalidPage({ level }: { level: Level }) {
+  return (
+    <Shell title="回答を確認できませんでした">
+      <section class="question panel">
+        <span class="badge red">Invalid answers</span>
+        <h1>回答内容を確認できませんでした。</h1>
+        <p class="lead">ページを開き直し、5問すべてに回答してください。</p>
+        <div class="footer-actions">
+          <a class="button primary" href={`/challenges/${level}`}>
+            新しい問題でやり直す
+          </a>
+        </div>
+      </section>
     </Shell>
   );
 }
@@ -899,6 +1239,9 @@ function StatusPage({ rows }: { rows: ProgressRow[] }) {
             <a class="button primary" href="/play">
               問題に進む
             </a>
+            <a class="button" href="/challenges">
+              追加チャレンジ
+            </a>
           </div>
         </section>
       </div>
@@ -914,7 +1257,10 @@ function CompletePage({ rows }: { rows: ProgressRow[] }) {
         <h1>全レベルの通常出題は完了しています。</h1>
         <p class="lead">ここからは復習でミスの多いタグを潰すと、説明の安定感が上がります。</p>
         <div class="footer-actions">
-          <a class="button primary" href="/review">
+          <a class="button primary" href="/challenges">
+            追加チャレンジへ
+          </a>
+          <a class="button" href="/review">
             復習する
           </a>
           <a class="button" href="/status">
@@ -963,7 +1309,9 @@ function ResetPage() {
       <section class="question panel">
         <span class="badge red">Reset</span>
         <h1>進捗をリセットします。</h1>
-        <p class="lead">D1に保存された正解数、ミス数、回答履歴を削除します。</p>
+        <p class="lead">
+          D1に保存された正解数、ミス数、回答履歴、追加チャレンジの記録を削除します。
+        </p>
         <form method="post" action="/reset" class="footer-actions">
           <label class="option-item">
             <input type="text" name="confirm" placeholder="RESET" required />
@@ -1060,6 +1408,11 @@ function parseStream(value: string): StreamKind | null {
   return value === "new" || value === "revenge" || value === "retention" || value === "remediation"
     ? value
     : null;
+}
+
+function parseLevel(value: string): Level | null {
+  const parsed = Number(value);
+  return levels.includes(parsed as Level) ? (parsed as Level) : null;
 }
 
 function streamLabel(stream: StreamKind): string {
