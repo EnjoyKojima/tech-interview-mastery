@@ -12,6 +12,8 @@ export type Option = {
 
 export type GlossaryEntry = {
   term: string;
+  reading?: string;
+  fullForm?: string;
   description: string;
 };
 

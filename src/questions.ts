@@ -1,4 +1,5 @@
 import { additionalQuestions } from "./additional-questions";
+import { withAdvancedTermDetails } from "./advanced-glossary";
 import { withSharperOptions } from "./distractor-overrides";
 import { withExplanationEnrichments } from "./explanation-enrichments";
 import { generatedQuestions } from "./generated-questions";
@@ -1456,10 +1457,14 @@ const baseQuestions: Question[] = [
 ];
 
 function withGlossary(items: readonly Question[]): Question[] {
-  return items.map((question) => ({
-    ...question,
-    glossary: question.glossary ?? glossaryByQuestionId[question.id],
-  }));
+  return items.map((question) => {
+    const glossary = question.glossary ?? glossaryByQuestionId[question.id];
+
+    return {
+      ...question,
+      glossary: glossary && question.level >= 6 ? withAdvancedTermDetails(glossary) : glossary,
+    };
+  });
 }
 
 export const questions = withExplanationEnrichments(
