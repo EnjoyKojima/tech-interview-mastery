@@ -90,6 +90,7 @@ export type LevelSummary = {
   masteredQuestions: number;
   masteryPoints: number;
   requiredPoints: number;
+  correctCounts: number[];
   unlocked: boolean;
   current: boolean;
 };

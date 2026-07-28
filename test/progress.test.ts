@@ -5,6 +5,7 @@ import {
   assertQuestionBank,
   buildDomainSummaries,
   buildLevelClearanceSummary,
+  buildLevelSummaries,
   currentLevel,
   playableQuestions,
 } from "../src/progress";
@@ -94,6 +95,30 @@ describe("progression", () => {
       }));
 
     expect(currentLevel(questions, rows)).toBe(2);
+  });
+
+  it("builds one capped, grouped progress segment per question", () => {
+    const levelOneQuestions = questions.filter((question) => question.level === 1);
+    const rows: ProgressRow[] = levelOneQuestions.slice(0, 3).map((question, index) => ({
+      questionId: question.id,
+      level: question.level,
+      domain: question.domain,
+      correctCount: [4, 1, 2][index],
+      attempts: 4,
+      misses: 0,
+      lastAnsweredAt: null,
+      lastCorrectAt: null,
+      dueAt: null,
+      retentionStage: 0,
+    }));
+
+    const levelOne = buildLevelSummaries(questions, rows)[0];
+
+    expect(levelOne.correctCounts).toHaveLength(levelOneQuestions.length);
+    expect(levelOne.correctCounts.slice(0, 4)).toEqual([3, 2, 1, 0]);
+    expect(levelOne.correctCounts.filter((count) => count === 0)).toHaveLength(
+      levelOneQuestions.length - 3,
+    );
   });
 
   it("summarizes how many answers remain to clear the level", () => {

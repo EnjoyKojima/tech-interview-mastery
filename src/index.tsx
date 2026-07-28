@@ -1330,27 +1330,67 @@ function ResetPage() {
 
 function LevelList({ summaries }: { summaries: LevelSummary[] }) {
   return (
-    <ol class="level-list">
-      {summaries.map((summary) => (
-        <li class="level-item">
-          <div class="level-head">
-            <strong>
-              Level {summary.level}: {levelTitle(summary.level)}
-            </strong>
-            <span class={`badge ${summary.current ? "green" : summary.unlocked ? "" : "amber"}`}>
-              {summary.current ? "current" : summary.unlocked ? "open" : "locked"}
-            </span>
-          </div>
-          <div class="progress" aria-label={`Level ${summary.level} progress`}>
-            <span style={widthStyle(summary.masteryPoints, summary.requiredPoints)} />
-          </div>
-          <p class="muted">
-            {summary.masteryPoints}/{summary.requiredPoints} points · {summary.masteredQuestions}/
-            {summary.totalQuestions} questions mastered
-          </p>
-        </li>
-      ))}
-    </ol>
+    <div>
+      <div class="mastery-legend" aria-label="問題ごとの正解回数の色分け">
+        <span>
+          <i class="mastery-3" />
+          3回正解
+        </span>
+        <span>
+          <i class="mastery-2" />
+          2回正解
+        </span>
+        <span>
+          <i class="mastery-1" />
+          1回正解
+        </span>
+        <span>
+          <i class="mastery-0" />
+          未正解
+        </span>
+      </div>
+      <ol class="level-list">
+        {summaries.map((summary) => {
+          const counts = [3, 2, 1, 0].map(
+            (correctCount) =>
+              summary.correctCounts.filter((value) => value === correctCount).length,
+          );
+
+          return (
+            <li class="level-item">
+              <div class="level-head">
+                <strong>
+                  Level {summary.level}: {levelTitle(summary.level)}
+                </strong>
+                <span
+                  class={`badge ${summary.current ? "green" : summary.unlocked ? "" : "amber"}`}
+                >
+                  {summary.current ? "current" : summary.unlocked ? "open" : "locked"}
+                </span>
+              </div>
+              <div
+                class="mastery-segments"
+                style={`--segment-count: ${summary.correctCounts.length};`}
+                role="img"
+                aria-label={`Level ${summary.level} progress: 3回正解 ${counts[0]}問、2回正解 ${counts[1]}問、1回正解 ${counts[2]}問、未正解 ${counts[3]}問`}
+              >
+                {summary.correctCounts.map((correctCount, index) => (
+                  <span
+                    class={`mastery-segment mastery-${correctCount}`}
+                    key={`${summary.level}-${index}`}
+                    aria-hidden="true"
+                  />
+                ))}
+              </div>
+              <p class="muted">
+                {summary.masteryPoints}/{summary.requiredPoints} points ·{" "}
+                {summary.masteredQuestions}/{summary.totalQuestions} questions mastered
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

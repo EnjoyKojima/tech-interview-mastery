@@ -78,6 +78,9 @@ export function buildLevelSummaries(
 
   return levels.map((level) => {
     const levelQuestions = questions.filter((question) => question.level === level);
+    const correctCounts = levelQuestions
+      .map((question) => Math.min(progressFor(question, rows).correctCount, masteryTarget))
+      .toSorted((left, right) => right - left);
     const masteryPoints = levelQuestions.reduce((sum, question) => {
       const correctCount = progressFor(question, rows).correctCount;
       return sum + Math.min(correctCount, masteryTarget);
@@ -90,6 +93,7 @@ export function buildLevelSummaries(
         .length,
       masteryPoints,
       requiredPoints: levelQuestions.length * masteryTarget,
+      correctCounts,
       unlocked: level <= activeLevel,
       current: level === activeLevel,
     };
