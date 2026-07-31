@@ -407,7 +407,7 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
 
   return (
     <Shell title="Tech Interview Mastery">
-      <div class="grid dashboard">
+      <div class="grid">
         <section class="panel">
           <span class="eyebrow">Current location</span>
           <h1 class="headline">Level {activeLevel} を攻略中</h1>
@@ -452,21 +452,6 @@ function HomePage({ rows, openGaps }: { rows: ProgressRow[]; openGaps: number })
               </span>
             </div>
           </div>
-        </section>
-        <section class="panel flat">
-          <h2 class="section-title">これがわかると理解できること</h2>
-          {focus ? (
-            <div class="callout">
-              <strong>{focus.prompt}</strong>
-              <p class="muted">{understandingOutcome(focus.next)}</p>
-              <span class="badge">{domainLabel(focus.domain)}</span>
-            </div>
-          ) : (
-            <div class="callout">
-              <strong>全レベル完了</strong>
-              <p class="muted">復習で弱いタグを潰すと、面接の説明がさらに安定します。</p>
-            </div>
-          )}
         </section>
       </div>
       <div class="grid" style="margin-top: 16px;">
