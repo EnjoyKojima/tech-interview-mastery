@@ -80,11 +80,6 @@ button.danger {
   gap: 16px;
 }
 
-.dashboard {
-  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
-  align-items: start;
-}
-
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -668,7 +663,6 @@ pre {
 }
 
 @media (max-width: 800px) {
-  .dashboard,
   .stat-row {
     grid-template-columns: 1fr;
   }
