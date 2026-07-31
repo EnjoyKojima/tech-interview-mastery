@@ -324,11 +324,7 @@ app.get("/checkpoint", async (context) => {
   return context.html(<CheckpointPage mode={mode} events={events} />);
 });
 
-app.get("/status", async (context) => {
-  await resetCurrentStreak(context.env.DB);
-  const rows = await loadProgress(context.env.DB);
-  return context.html(<StatusPage rows={rows} />);
-});
+app.get("/status", (context) => context.redirect("/"));
 
 app.get("/diagrams", (context) => {
   return context.html(<DiagramsPage />);
@@ -861,7 +857,7 @@ function AnswerPage({
           <a class="button primary" style="flex: 1;" href={nextHref}>
             {checkpointDue ? "10問の振り返りへ" : "次へ"}
           </a>
-          <a class="button" href="/status">
+          <a class="button" href="/">
             現在地を見る
           </a>
         </div>
@@ -1202,34 +1198,11 @@ function CheckpointPage({
           <a class="button primary" style="flex: 1;" href={continueHref}>
             続ける
           </a>
-          <a class="button" href="/status">
+          <a class="button" href="/">
             現在地を見る
           </a>
         </div>
       </section>
-    </Shell>
-  );
-}
-
-function StatusPage({ rows }: { rows: ProgressRow[] }) {
-  const levelSummaries = buildLevelSummaries(questions, rows);
-
-  return (
-    <Shell title="現在地">
-      <div class="grid dashboard">
-        <section class="panel flat">
-          <h1 class="section-title">現在地</h1>
-          <LevelList summaries={levelSummaries} />
-          <div class="footer-actions">
-            <a class="button primary" href="/play">
-              問題に進む
-            </a>
-            <a class="button" href="/challenges">
-              追加チャレンジ
-            </a>
-          </div>
-        </section>
-      </div>
     </Shell>
   );
 }
@@ -1248,7 +1221,7 @@ function CompletePage({ rows }: { rows: ProgressRow[] }) {
           <a class="button" href="/review">
             復習する
           </a>
-          <a class="button" href="/status">
+          <a class="button" href="/">
             現在地を見る
           </a>
         </div>
@@ -1304,7 +1277,7 @@ function ResetPage() {
           <button class="danger" type="submit">
             リセット
           </button>
-          <a class="button" href="/status">
+          <a class="button" href="/">
             戻る
           </a>
         </form>
